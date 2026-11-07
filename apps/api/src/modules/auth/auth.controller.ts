@@ -10,24 +10,27 @@ const updateProfileSchema = z.object({
 export class AuthController {
   /**
    * GET /api/auth/me
-   * Returns current authenticated user and automatically syncs their record into Prisma.
+   * Returns current authenticated user, their active workspace, available workspaces,
+   * and automatically provisions default workspace if needed.
    */
   static async getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({
           success: false,
-          error: { message: "Unauthorized", statusCode: 401 },
+          error: { message: "Unauthorized: Missing authentication session", statusCode: 401 },
         });
         return;
       }
 
-      const syncedUser = await AuthService.syncUserFromSupabase(req.user);
+      const authContext = await AuthService.syncUserFromSupabase(req.user);
 
       res.status(200).json({
         success: true,
         data: {
-          profile: syncedUser,
+          profile: authContext.profile,
+          activeWorkspace: authContext.activeWorkspace,
+          workspaces: authContext.workspaces,
           auth: {
             id: req.user.id,
             email: req.user.email,
@@ -67,11 +70,21 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
-        data: { profile: updated },
+        data: {
+          profile: {
+            id: updated.id,
+            supabaseId: updated.supabaseId,
+            email: updated.email,
+            name: updated.name,
+            role: updated.role,
+            activeWorkspaceId: updated.activeWorkspaceId,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+          },
+        },
       });
     } catch (err) {
       next(err);
     }
   }
 }
-

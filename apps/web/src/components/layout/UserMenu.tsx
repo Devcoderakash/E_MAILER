@@ -2,19 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { User, Settings, Key, BookOpen, LogOut, ShieldCheck, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/features/auth/use-auth-store";
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Demo / fallback user profile
-  const user = {
-    name: "Akash Lodhi",
-    email: "akash@mailpilot.io",
-    role: "Owner / Administrator",
-    avatar: "",
-  };
+  const { user, profile, activeWorkspace, signOut } = useAuthStore();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -30,10 +25,22 @@ export function UserMenu() {
     };
   }, [isOpen]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     setIsOpen(false);
-    alert("Sign out triggered (Ready for Phase 3 Authentication integration).");
+    await signOut();
+    navigate("/login", { replace: true });
   };
+
+  const displayName = profile?.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const email = user?.email || profile?.email || "";
+  const role = activeWorkspace?.role ? `${activeWorkspace.role.toUpperCase()}` : (profile?.role || "Member");
+
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -44,7 +51,7 @@ export function UserMenu() {
         aria-label="User account menu"
       >
         <Avatar
-          fallback="AL"
+          fallback={initials || "U"}
           className="h-8 w-8 border border-slate-200 bg-indigo-600 text-white font-semibold text-xs shadow-xs"
         />
       </button>
@@ -53,15 +60,15 @@ export function UserMenu() {
         <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left">
           {/* User Profile Header */}
           <div className="px-3 py-2.5 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-900 leading-tight">
-              {user.name}
+            <p className="text-xs font-semibold text-slate-900 leading-tight truncate">
+              {displayName}
             </p>
             <p className="text-[11px] text-slate-500 leading-tight truncate mt-0.5">
-              {user.email}
+              {email}
             </p>
             <div className="mt-1.5 inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
               <ShieldCheck className="h-3 w-3 text-indigo-600" />
-              <span>{user.role}</span>
+              <span>{role}</span>
             </div>
           </div>
 

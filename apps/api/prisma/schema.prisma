@@ -13,15 +13,51 @@ datasource db {
 
 // Foundation User model linked to Supabase Auth UUID
 model User {
-  id        String   @id @default(uuid())
-  supabaseId String  @unique @map("supabase_id")
-  email     String   @unique
-  name      String?
-  role      String   @default("member")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String            @id @default(uuid())
+  supabaseId        String            @unique @map("supabase_id")
+  email             String            @unique
+  name              String?
+  role              String            @default("member")
+  activeWorkspaceId String?           @map("active_workspace_id")
+  activeWorkspace   Workspace?        @relation("UserActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
+  memberships       WorkspaceMember[]
 
   @@map("users")
+}
+
+// Workspace Organization unit for multi-tenancy
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  slug        String            @unique
+  ownerId     String            @map("owner_id")
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  members     WorkspaceMember[]
+  activeUsers User[]            @relation("UserActiveWorkspace")
+
+  @@map("workspaces")
+}
+
+// Workspace Member relationship with role-based access control
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("member") // owner, admin, member
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
 }
 
 // System setting / health check record
@@ -33,4 +69,3 @@ model SystemHealth {
 
   @@map("system_health")
 }
-

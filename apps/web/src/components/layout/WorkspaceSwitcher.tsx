@@ -1,26 +1,16 @@
 import { useState, useRef, useEffect } from "react";
-import { Check, ChevronsUpDown, Plus, Sparkles } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface Workspace {
-  id: string;
-  name: string;
-  plan: string;
-  color: string;
-}
-
-const initialWorkspaces: Workspace[] = [
-  { id: "ws-1", name: "Acme Marketing", plan: "Pro Plan", color: "bg-indigo-600 text-white" },
-  { id: "ws-2", name: "MailPilot Internal", plan: "Enterprise", color: "bg-slate-800 text-white" },
-  { id: "ws-3", name: "Personal Sandbox", plan: "Free Tier", color: "bg-blue-600 text-white" },
-];
+import { useAuthStore } from "@/features/auth/use-auth-store";
+import { api } from "@/lib/api-client";
+import type { Workspace } from "@/types";
 
 export function WorkspaceSwitcher() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(initialWorkspaces);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>(initialWorkspaces[0]);
+  const { activeWorkspace, workspaces, setActiveWorkspace, setWorkspaces } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newWsName, setNewWsName] = useState("");
+  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,21 +28,47 @@ export function WorkspaceSwitcher() {
     };
   }, [isOpen]);
 
-  const handleCreateWorkspace = (e: React.FormEvent) => {
+  const handleSwitchWorkspace = async (ws: Workspace) => {
+    if (ws.id === activeWorkspace?.id) {
+      setIsOpen(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await api.switchWorkspace(ws.id);
+      setActiveWorkspace(ws);
+      setIsOpen(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to switch workspace.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWsName.trim()) return;
-    const newWs: Workspace = {
-      id: `ws-${Date.now()}`,
-      name: newWsName.trim(),
-      plan: "Free Tier",
-      color: "bg-emerald-600 text-white",
-    };
-    setWorkspaces((prev) => [...prev, newWs]);
-    setActiveWorkspace(newWs);
-    setNewWsName("");
-    setIsCreating(false);
-    setIsOpen(false);
+
+    try {
+      setLoading(true);
+      const res = await api.createWorkspace(newWsName.trim());
+      const newWs = res.workspace;
+
+      setWorkspaces([...workspaces, newWs]);
+      setActiveWorkspace(newWs);
+      setNewWsName("");
+      setIsCreating(false);
+      setIsOpen(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to create workspace.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const currentWorkspaceName = activeWorkspace?.name || "Default Workspace";
+  const initials = currentWorkspaceName.substring(0, 2).toUpperCase();
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -63,20 +79,15 @@ export function WorkspaceSwitcher() {
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold shadow-xs",
-              activeWorkspace.color
-            )}
-          >
-            {activeWorkspace.name.substring(0, 2).toUpperCase()}
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white text-xs font-bold shadow-xs">
+            {initials}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold text-slate-900 leading-tight">
-              {activeWorkspace.name}
+              {currentWorkspaceName}
             </p>
-            <p className="truncate text-[10px] text-slate-500 font-medium leading-tight">
-              {activeWorkspace.plan}
+            <p className="truncate text-[10px] text-slate-500 font-medium leading-tight capitalize">
+              {activeWorkspace?.role || "Member"} &bull; Cloud SaaS
             </p>
           </div>
         </div>
@@ -90,34 +101,27 @@ export function WorkspaceSwitcher() {
             Workspaces
           </div>
 
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 max-h-48 overflow-y-auto">
             {workspaces.map((ws) => (
               <button
                 key={ws.id}
                 type="button"
-                onClick={() => {
-                  setActiveWorkspace(ws);
-                  setIsOpen(false);
-                }}
+                disabled={loading}
+                onClick={() => handleSwitchWorkspace(ws)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs transition-colors",
-                  ws.id === activeWorkspace.id
+                  ws.id === activeWorkspace?.id
                     ? "bg-indigo-50/70 text-indigo-900 font-medium"
                     : "text-slate-700 hover:bg-slate-100/70"
                 )}
               >
                 <div className="flex items-center gap-2 truncate">
-                  <div
-                    className={cn(
-                      "flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold",
-                      ws.color
-                    )}
-                  >
-                    {ws.name.substring(0, 1)}
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-600 text-white text-[10px] font-bold">
+                    {ws.name.substring(0, 1).toUpperCase()}
                   </div>
                   <span className="truncate">{ws.name}</span>
                 </div>
-                {ws.id === activeWorkspace.id && (
+                {ws.id === activeWorkspace?.id && (
                   <Check className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                 )}
               </button>
@@ -134,20 +138,24 @@ export function WorkspaceSwitcher() {
                 onChange={(e) => setNewWsName(e.target.value)}
                 placeholder="Workspace name..."
                 autoFocus
+                disabled={loading}
                 className="w-full h-7 rounded border border-slate-200 px-2 text-xs focus:outline-none focus:border-indigo-500"
               />
               <div className="flex justify-end gap-1.5">
                 <button
                   type="button"
                   onClick={() => setIsCreating(false)}
+                  disabled={loading}
                   className="px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-700"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-2 py-0.5 text-[11px] bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700"
+                  disabled={loading || !newWsName.trim()}
+                  className="px-2 py-0.5 text-[11px] bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
                 >
+                  {loading && <Loader2 className="h-3 w-3 animate-spin" />}
                   Create
                 </button>
               </div>
@@ -166,7 +174,7 @@ export function WorkspaceSwitcher() {
           <div className="mt-1 pt-1.5 border-t border-slate-100">
             <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-slate-500">
               <Sparkles className="h-3 w-3 text-indigo-500" />
-              <span>Pro Plan Active (Unlimited)</span>
+              <span className="capitalize">{activeWorkspace?.role || "Member"} Access</span>
             </div>
           </div>
         </div>

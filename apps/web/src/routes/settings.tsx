@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   Globe,
@@ -13,29 +13,72 @@ import {
   Cpu,
   Save,
   Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatusBadge } from "@/components/common";
 import { useHealth } from "@/hooks/use-health";
+import { useAuthStore } from "@/features/auth/use-auth-store";
+import { api } from "@/lib/api-client";
 
 type SettingsTab = "general" | "domains" | "api" | "team" | "system";
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const { data: health, refetch: refetchHealth, isFetching } = useHealth();
+  const { user, profile, activeWorkspace, setActiveWorkspace, setProfile } = useAuthStore();
+
   const [isCopied, setIsCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form states
-  const [workspaceName, setWorkspaceName] = useState("Acme Marketing");
+  const [workspaceName, setWorkspaceName] = useState(activeWorkspace?.name || "My Workspace");
+  const [userName, setUserName] = useState(profile?.name || user?.user_metadata?.full_name || "");
   const [fromName, setFromName] = useState("MailPilot Notifications");
-  const [fromEmail, setFromEmail] = useState("hello@mailpilot.io");
-  const [replyTo, setReplyTo] = useState("support@mailpilot.io");
+  const [fromEmail, setFromEmail] = useState(user?.email || "hello@mailpilot.io");
+  const [replyTo, setReplyTo] = useState(user?.email || "support@mailpilot.io");
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (activeWorkspace?.name) {
+      setWorkspaceName(activeWorkspace.name);
+    }
+  }, [activeWorkspace?.name]);
+
+  useEffect(() => {
+    if (profile?.name) {
+      setUserName(profile.name);
+    }
+  }, [profile?.name]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2500);
+    setIsSaving(true);
+
+    try {
+      // 1. Update user profile name if changed
+      if (userName.trim() && userName !== profile?.name) {
+        const profileRes = await api.updateProfile({ name: userName.trim() });
+        setProfile(profileRes.profile);
+      }
+
+      // 2. Update workspace name if changed
+      if (
+        activeWorkspace &&
+        workspaceName.trim() &&
+        workspaceName !== activeWorkspace.name
+      ) {
+        const wsRes = await api.updateWorkspace(activeWorkspace.id, workspaceName.trim());
+        setActiveWorkspace(wsRes.workspace);
+      }
+
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    } catch (err: any) {
+      alert(err.message || "Failed to update settings.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const copyApiKey = () => {
@@ -43,6 +86,9 @@ export function SettingsPage() {
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
+
+  const displayName = profile?.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const userInitials = displayName.substring(0, 2).toUpperCase();
 
   return (
     <div className="space-y-6">
@@ -85,7 +131,7 @@ export function SettingsPage() {
         <form onSubmit={handleSave} className="space-y-6 max-w-2xl text-xs">
           <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
             <h3 className="font-semibold text-sm text-slate-900 border-b border-slate-100 pb-3">
-              Workspace Information
+              Workspace & Profile Information
             </h3>
 
             <div>
@@ -94,13 +140,27 @@ export function SettingsPage() {
               </label>
               <input
                 type="text"
+                required
                 value={workspaceName}
                 onChange={(e) => setWorkspaceName(e.target.value)}
                 className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                Your company or team workspace name displayed to team members.
+                Workspace: <span className="font-mono text-slate-600">{activeWorkspace?.slug || "default"}</span> ({activeWorkspace?.role || "Owner"})
               </p>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Your Display Name
+              </label>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Sarah Connor"
+                className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -145,10 +205,20 @@ export function SettingsPage() {
           <div className="flex items-center gap-3">
             <Button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs h-9 px-4 font-medium"
+              disabled={isSaving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs h-9 px-4 font-medium disabled:opacity-50"
             >
-              <Save className="h-3.5 w-3.5" />
-              {isSaved ? "Saved Successfully!" : "Save Changes"}
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" />
+                  Save Changes
+                </>
+              )}
             </Button>
             {isSaved && (
               <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
@@ -277,12 +347,12 @@ export function SettingsPage() {
                   Workspace Members
                 </h3>
                 <p className="text-slate-500 mt-0.5">
-                  Manage collaborators and role permissions.
+                  Manage collaborators for workspace: <strong className="text-slate-800">{activeWorkspace?.name}</strong>
                 </p>
               </div>
               <Button
                 size="sm"
-                onClick={() => alert("Invite teammate dialog ready for Phase 3.")}
+                onClick={() => alert("Invite teammate dialog ready for workspace collaboration.")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1 text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -294,32 +364,15 @@ export function SettingsPage() {
               <div className="py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
-                    AL
+                    {userInitials}
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">Akash Lodhi</div>
-                    <div className="text-slate-500 text-[11px]">akash@mailpilot.io</div>
+                    <div className="font-semibold text-slate-900">{displayName}</div>
+                    <div className="text-slate-500 text-[11px]">{user?.email || profile?.email}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status="active" label="Workspace Owner" />
-                </div>
-              </div>
-
-              <div className="py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">
-                    SC
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">Sarah Connor</div>
-                    <div className="text-slate-500 text-[11px]">sarah@mailpilot.io</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 border border-slate-200">
-                    Administrator
-                  </span>
+                  <StatusBadge status="active" label={activeWorkspace?.role === "owner" ? "Workspace Owner" : "Active Member"} />
                 </div>
               </div>
             </div>

@@ -6,7 +6,7 @@ import { checkRedisHealth } from "./config/redis";
 import { checkDatabaseHealth } from "./config/database";
 import { requestLogger } from "./middleware/logger.middleware";
 import { errorHandler } from "./middleware/error.middleware";
-import { authRouter } from "./modules";
+import { authRouter, workspaceRouter } from "./modules";
 
 export function createApp(): Application {
   const app = express();
@@ -67,8 +67,11 @@ export function createApp(): Application {
     }
   });
 
-  // Authentication & User Profile Routes (Phase 1 verified / Phase 2 ready)
+  // Authentication & User Profile Routes
   app.use("/api/auth", authRouter);
+
+  // Workspace Multi-Tenancy Routes
+  app.use("/api/workspaces", workspaceRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

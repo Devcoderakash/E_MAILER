@@ -8,6 +8,42 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
+export interface UserProfile {
+  id: string;
+  supabaseId: string;
+  email: string;
+  name: string | null;
+  role: string;
+  activeWorkspaceId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  isOwner?: boolean;
+  memberCount?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AuthMeResponse {
+  profile: UserProfile;
+  activeWorkspace: Workspace | null;
+  workspaces: Workspace[];
+  auth: {
+    id: string;
+    email?: string;
+    phone?: string;
+    lastSignInAt?: string;
+    createdAt?: string;
+  };
+}
+
 export interface HealthResponse {
   status: "healthy" | "unhealthy" | string;
   service?: string;
