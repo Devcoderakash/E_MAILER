@@ -23,9 +23,14 @@ const envSchema = z.object({
   // Redis & BullMQ
   REDIS_URL: z.string().min(1, "REDIS_URL is required").default("redis://127.0.0.1:6379"),
 
-  // Future Integrations & Webhooks
+  // Integrations & Webhooks
   RESEND_API_KEY: z.string().optional(),
   RESEND_WEBHOOK_SECRET: z.string().optional(),
+
+  // Phase 9: AI Campaign Copilot
+  AI_PROVIDER: z.string().default("openai"),
+  AI_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -56,6 +61,9 @@ function validateEnv(): Env {
       SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || "placeholder-secret-key",
       REDIS_URL: process.env.REDIS_URL || "redis://127.0.0.1:6379",
       RESEND_API_KEY: process.env.RESEND_API_KEY,
+      AI_PROVIDER: process.env.AI_PROVIDER || "openai",
+      AI_API_KEY: process.env.AI_API_KEY,
+      AI_MODEL: process.env.AI_MODEL,
     };
   }
 

@@ -4,12 +4,14 @@ import { redis } from "./config/redis";
 import { prisma } from "./config/database";
 import { createCampaignWorker } from "./workers/campaign.worker";
 import { createWebhookWorker } from "./workers/webhook.worker";
+import { createAutomationWorker } from "./workers/automation.worker";
 import { ScheduleService } from "./modules/schedules/schedule.service";
 
 const app = createApp();
 
 const campaignWorker = createCampaignWorker();
 const webhookWorker = createWebhookWorker();
+const automationWorker = createAutomationWorker();
 
 const server = app.listen(env.PORT, () => {
   console.log(`🚀 [MailPilot API] Server running on http://localhost:${env.PORT} in ${env.NODE_ENV} mode`);
@@ -41,6 +43,10 @@ async function handleShutdown(signal: string) {
       if (webhookWorker) {
         await webhookWorker.close();
         console.log(" Webhook worker closed.");
+      }
+      if (automationWorker) {
+        await automationWorker.close();
+        console.log(" Automation worker closed.");
       }
     } catch (err: any) {
       console.error("❌ Error closing campaign worker:", err.message);

@@ -23,7 +23,9 @@ import {
   Play,
   RotateCcw,
   Calendar,
+  Sparkles,
 } from "lucide-react";
+import { AICopilotModal } from "@/features/campaigns/ai-copilot-modal";
 import { Button } from "@/components/ui/button";
 import {
   PageHeader,
@@ -74,6 +76,7 @@ export function CampaignsPage() {
 
   // Modal / Drawer states
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [detailsCampaign, setDetailsCampaign] = useState<Campaign | null>(null);
   const [recipientStatusFilter, setRecipientStatusFilter] = useState<string>("all");
@@ -471,6 +474,16 @@ export function CampaignsPage() {
                 }`}
               />
               <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAICopilotOpen(true)}
+              className="h-9 px-3 gap-1.5 text-xs text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/80 border-indigo-200/80 shadow-2xs font-medium"
+              title="Launch AI Campaign Copilot"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+              <span>AI Copilot</span>
             </Button>
             <Button
               onClick={openCreateWizard}
@@ -884,9 +897,19 @@ export function CampaignsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Subject Line <span className="text-rose-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-slate-700">
+                        Subject Line <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsAICopilotOpen(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                      >
+                        <Sparkles className="h-3 w-3 text-indigo-500" />
+                        AI Copilot Suggestions
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={formSubject}
@@ -1851,6 +1874,27 @@ export function CampaignsPage() {
           </div>
         </div>
       )}
+
+      {/* AI Campaign Copilot Modal */}
+      <AICopilotModal
+        isOpen={isAICopilotOpen}
+        onClose={() => setIsAICopilotOpen(false)}
+        currentSubject={formSubject}
+        currentPreheader={formPreheader}
+        currentHtmlContent={formHtmlContent}
+        onApplySubject={(subj) => setFormSubject(subj)}
+        onApplyPreheader={(pre) => setFormPreheader(pre)}
+        onApplyHtmlContent={(html) => setFormHtmlContent(html)}
+        onApplyAll={({ subject, preheader, htmlContent }) => {
+          if (subject) setFormSubject(subject);
+          if (preheader) setFormPreheader(preheader);
+          if (htmlContent) setFormHtmlContent(htmlContent);
+          setToastMessage({
+            type: "success",
+            text: "AI Draft successfully applied to campaign fields!",
+          });
+        }}
+      />
     </div>
   );
 }

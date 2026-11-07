@@ -1,4 +1,20 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ReactFlow,
+  Controls,
+  Background,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Connection,
+  Edge,
+  Node,
+  BackgroundVariant,
+  Panel,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import {
   Workflow,
   Plus,
@@ -7,139 +23,482 @@ import {
   GitBranch,
   CheckCircle2,
   Users,
-  Eye,
   X,
+  Play,
+  Pause,
+  Trash2,
+  Save,
+  Clock,
+  Mail,
+  Tag,
+  Layers,
+  Activity,
+  History,
+  AlertCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader, StatusBadge, EmptyState, SearchInput } from "@/components/common";
-import type { AutomationWorkflow, AutomationTriggerType } from "@/types";
-
-const sampleWorkflows: AutomationWorkflow[] = [
-  {
-    id: "wf-1",
-    name: "Customer Welcome & Activation Series",
-    description: "4-step onboarding sequence triggered immediately when a new user verifies their email.",
-    triggerType: "user_signup",
-    isActive: true,
-    stepCount: 4,
-    totalEnrolled: 1420,
-    completedCount: 1280,
-    lastTriggeredAt: "15 minutes ago",
-  },
-  {
-    id: "wf-2",
-    name: "VIP Customer Engagement Drip",
-    description: "Sends customized perk announcements and invitations when 'VIP' tag is applied.",
-    triggerType: "tag_added",
-    isActive: true,
-    stepCount: 3,
-    totalEnrolled: 420,
-    completedCount: 390,
-    lastTriggeredAt: "2 hours ago",
-  },
-  {
-    id: "wf-3",
-    name: "Abandoned Checkout Recovery",
-    description: "Multi-touch notification schedule with 1hr delay, 24hr reminder, and 10% coupon code.",
-    triggerType: "cart_abandoned",
-    isActive: false,
-    stepCount: 3,
-    totalEnrolled: 890,
-    completedCount: 710,
-    lastTriggeredAt: "Yesterday",
-  },
-  {
-    id: "wf-4",
-    name: "Re-engagement Sequence (60d Inactive)",
-    description: "Re-activates dormant subscribers before moving unengaged contacts to clean archive.",
-    triggerType: "custom_event",
-    isActive: true,
-    stepCount: 2,
-    totalEnrolled: 640,
-    completedCount: 580,
-    lastTriggeredAt: "3 days ago",
-  },
-];
+import {
+  PageHeader,
+  StatusBadge,
+  EmptyState,
+  SearchInput,
+} from "@/components/common";
+import { nodeTypes } from "@/features/automations/custom-nodes";
+import { api } from "@/lib/api-client";
+import type {
+  Automation,
+  WorkflowDefinition,
+} from "@/types";
 
 export function AutomationBuilderPage() {
-  const [workflows, setWorkflows] = useState<AutomationWorkflow[]>(sampleWorkflows);
-  const [filterState, setFilterState] = useState<"all" | "active" | "paused">("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showEmptyState, setShowEmptyState] = useState(false);
-  const [selectedWorkflowPreview, setSelectedWorkflowPreview] = useState<AutomationWorkflow | null>(null);
+  const queryClient = useQueryClient();
 
-  const toggleWorkflowStatus = (id: string) => {
-    setWorkflows((prev) =>
-      prev.map((wf) => (wf.id === id ? { ...wf, isActive: !wf.isActive } : wf))
-    );
+  // Filter & Search State
+  const [filterState, setFilterState] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Notifications
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
-  const filtered = workflows.filter((wf) => {
-    const matchesFilter =
-      filterState === "all"
-        ? true
-        : filterState === "active"
-        ? wf.isActive
-        : !wf.isActive;
-    const matchesSearch =
-      wf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wf.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
+  // Queries
+  const { data: automationsData, isLoading } = useQuery({
+    queryKey: ["automations", filterState, debouncedSearch],
+    queryFn: () =>
+      api.getAutomations({
+        status: filterState === "all" ? undefined : filterState,
+        search: debouncedSearch || undefined,
+      }),
   });
 
-  const displayedList = showEmptyState ? [] : filtered;
+  const automations = automationsData?.items || [];
 
-  const getTriggerLabel = (type: AutomationTriggerType) => {
-    switch (type) {
-      case "user_signup":
-        return "User Sign-up";
-      case "tag_added":
-        return "Tag Applied";
-      case "cart_abandoned":
-        return "Abandoned Cart";
-      case "link_clicked":
-        return "Link Clicked";
-      default:
-        return "Custom Event";
+  // Metrics summary
+  const metrics = useMemo(() => {
+    const total = automations.length;
+    const activeCount = automations.filter((a) => a.status === "ACTIVE").length;
+    const totalEnrolled = automations.reduce(
+      (acc, a) => acc + (a.totalEnrolled || 0),
+      0
+    );
+    const completedCount = automations.reduce(
+      (acc, a) => acc + (a.completedCount || 0),
+      0
+    );
+    return { total, activeCount, totalEnrolled, completedCount };
+  }, [automations]);
+
+  // Editor Modal State
+  const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
+    null
+  );
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Executions History Drawer State
+  const [historyAutomation, setHistoryAutomation] = useState<Automation | null>(
+    null
+  );
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(
+    null
+  );
+
+  // Create Automation Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState("");
+  const [newWorkflowDesc, setNewWorkflowDesc] = useState("");
+  const [newTriggerType, setNewTriggerType] = useState("contact_subscribed");
+
+  // React Flow State for active workflow
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+
+  // Open Editor with loaded automation
+  const handleOpenEditor = async (auto: Automation) => {
+    try {
+      const full = await api.getAutomation(auto.id);
+      setEditingAutomation(full);
+      const def = (full.workflowDefinition || {}) as WorkflowDefinition;
+      const initialNodes = (def.nodes || []).map((n) => ({
+        id: n.id,
+        type: n.type,
+        data: { ...n.data, type: n.type },
+        position: n.position || { x: 250, y: 100 },
+      }));
+      const initialEdges = (def.edges || []).map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || null,
+        targetHandle: e.targetHandle || null,
+        label: e.label || (e.sourceHandle === "true" ? "Yes" : e.sourceHandle === "false" ? "No" : undefined),
+      }));
+
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+      setSelectedNode(null);
+      setValidationErrors([]);
+      setValidationWarnings([]);
+      setIsEditorOpen(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to load workflow", "error");
     }
   };
 
+  // Connect Edges
+  const onConnect = useCallback(
+    (params: Connection) => {
+      let label: string | undefined = undefined;
+      if (params.sourceHandle === "true") label = "Yes";
+      if (params.sourceHandle === "false") label = "No";
+
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            animated: true,
+            label,
+            style: { stroke: "#6366F1", strokeWidth: 2 },
+          },
+          eds
+        )
+      );
+    },
+    [setEdges]
+  );
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: (data: {
+      name: string;
+      description?: string;
+      triggerType: string;
+    }) => api.createAutomation(data),
+    onSuccess: (newAuto) => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      setIsCreateModalOpen(false);
+      setNewWorkflowName("");
+      setNewWorkflowDesc("");
+      showToast(`Created workflow "${newAuto.name}"`);
+      handleOpenEditor(newAuto);
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to create workflow", "error");
+    },
+  });
+
+  const saveWorkflowMutation = useMutation({
+    mutationFn: async ({
+      id,
+      workflowDefinition,
+    }: {
+      id: string;
+      workflowDefinition: WorkflowDefinition;
+    }) => api.updateAutomation(id, { workflowDefinition }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      setEditingAutomation(updated);
+      showToast("Workflow definition saved successfully.");
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to save workflow", "error");
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: (id: string) => api.activateAutomation(id),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      if (editingAutomation?.id === updated.id) {
+        setEditingAutomation(updated);
+      }
+      showToast(`Workflow "${updated.name}" is now ACTIVE!`);
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Activation blocked by validation error", "error");
+    },
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: (id: string) => api.pauseAutomation(id),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      if (editingAutomation?.id === updated.id) {
+        setEditingAutomation(updated);
+      }
+      showToast(`Workflow paused.`);
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to pause workflow", "error");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteAutomation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      showToast("Automation deleted.");
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to delete automation", "error");
+    },
+  });
+
+  // Client / Server Validation Check
+  const handleValidateWorkflow = async () => {
+    if (!editingAutomation) return;
+    try {
+      // First save current definition
+      const def: WorkflowDefinition = {
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          type: n.type || "action",
+          data: n.data,
+          position: n.position,
+        })),
+        edges: edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          label: typeof e.label === "string" ? e.label : undefined,
+        })),
+      };
+
+      await api.updateAutomation(editingAutomation.id, { workflowDefinition: def });
+      const res = await api.validateAutomation(editingAutomation.id);
+      setValidationErrors(res.errors || []);
+      setValidationWarnings(res.warnings || []);
+
+      if (res.isValid) {
+        showToast("Workflow graph is fully valid and ready to run!");
+      } else {
+        showToast(`Workflow has ${res.errors.length} validation errors`, "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Validation error", "error");
+    }
+  };
+
+  // Add Node to Canvas
+  const handleAddNode = (
+    type: string,
+    defaultData: Record<string, any> = {}
+  ) => {
+    const id = `node_${type}_${Date.now()}`;
+    // Position slightly offset from center
+    const x = 200 + Math.floor(Math.random() * 80);
+    const y = 150 + nodes.length * 90;
+
+    const newNode: Node = {
+      id,
+      type,
+      position: { x, y },
+      data: {
+        ...defaultData,
+        type,
+      },
+    };
+
+    setNodes((nds) => [...nds, newNode]);
+    setSelectedNode(newNode);
+    showToast(`Added ${defaultData.label || type} node`);
+  };
+
+  // Update Selected Node Data
+  const handleUpdateSelectedNodeData = (updates: Record<string, any>) => {
+    if (!selectedNode) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === selectedNode.id) {
+          const updated = {
+            ...n,
+            data: {
+              ...n.data,
+              ...updates,
+            },
+          };
+          setSelectedNode(updated);
+          return updated;
+        }
+        return n;
+      })
+    );
+  };
+
+  // Delete Selected Node
+  const handleDeleteSelectedNode = () => {
+    if (!selectedNode) return;
+    const nodeId = selectedNode.id;
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) =>
+      eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+    );
+    setSelectedNode(null);
+    showToast("Node removed");
+  };
+
+  // Save current workflow definition
+  const handleSaveFlow = () => {
+    if (!editingAutomation) return;
+    const def: WorkflowDefinition = {
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: n.type || "action",
+        data: n.data,
+        position: n.position,
+      })),
+      edges: edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        label: typeof e.label === "string" ? e.label : undefined,
+      })),
+    };
+
+    saveWorkflowMutation.mutate({
+      id: editingAutomation.id,
+      workflowDefinition: def,
+    });
+  };
+
+  // Executions query for drawer
+  const { data: executionsData, isLoading: isLoadingExecutions } = useQuery({
+    queryKey: ["automation-executions", historyAutomation?.id],
+    queryFn: () =>
+      historyAutomation
+        ? api.getAutomationExecutions(historyAutomation.id)
+        : Promise.resolve({ items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } }),
+    enabled: Boolean(historyAutomation),
+  });
+
+  // Single execution detail query
+  const { data: executionDetail } = useQuery({
+    queryKey: [
+      "automation-execution-detail",
+      historyAutomation?.id,
+      selectedExecutionId,
+    ],
+    queryFn: () =>
+      historyAutomation && selectedExecutionId
+        ? api.getAutomationExecutionDetail(
+            historyAutomation.id,
+            selectedExecutionId
+          )
+        : null,
+    enabled: Boolean(historyAutomation && selectedExecutionId),
+  });
+
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-medium shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+            toast.type === "success"
+              ? "bg-slate-900 text-white border border-slate-700"
+              : "bg-rose-600 text-white"
+          }`}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-white" />
+          )}
+          <span>{toast.text}</span>
+        </div>
+      )}
+
+      {/* Header */}
       <PageHeader
-        title="Automation Builder"
-        description="Build trigger-based workflows, drip sequences, and behavioral autoresponders."
+        title="Automations & Drip Sequences"
+        description="Visual workflow engine for behavioral sequences, condition branching, and drip funnels."
         badge={
-          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
-            {workflows.length} Workflows
+          <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200/60">
+            {metrics.total} Workflows ({metrics.activeCount} Active)
           </span>
         }
         actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowEmptyState(!showEmptyState)}
-              className="text-xs text-slate-500 hover:text-indigo-600 underline underline-offset-2 px-2"
-            >
-              {showEmptyState ? "Show Sample Workflows" : "View Empty State"}
-            </button>
-            <Button
-              onClick={() =>
-                alert("Visual Automation Flow Editor will be activated in Phase 7.")
-              }
-              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-2 text-xs sm:text-sm font-medium h-9 px-4"
-            >
-              <Plus className="h-4 w-4" />
-              Create Workflow
-            </Button>
-          </div>
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-2 text-xs sm:text-sm font-medium h-9 px-4"
+          >
+            <Plus className="h-4 w-4" />
+            New Automation
+          </Button>
         }
       />
+
+      {/* Metric Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+            <span>Total Automations</span>
+            <Workflow className="h-4 w-4 text-indigo-500" />
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{metrics.total}</div>
+          <div className="text-[11px] text-slate-400 mt-1">Configured in workspace</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+            <span>Active Sequences</span>
+            <Activity className="h-4 w-4 text-emerald-500" />
+          </div>
+          <div className="text-2xl font-bold text-emerald-600">
+            {metrics.activeCount}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Listening for triggers</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+            <span>Enrolled Contacts</span>
+            <Users className="h-4 w-4 text-blue-500" />
+          </div>
+          <div className="text-2xl font-bold text-slate-900">
+            {metrics.totalEnrolled.toLocaleString()}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Total journeys initiated</div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+            <span>Completed Runs</span>
+            <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-bold text-slate-900">
+            {metrics.completedCount.toLocaleString()}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Full flows finished</div>
+        </div>
+      </div>
 
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs">
-          {(["all", "active", "paused"] as const).map((tab) => (
+          {(["all", "active", "paused", "draft"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -166,11 +525,15 @@ export function AutomationBuilderPage() {
       </div>
 
       {/* Workflows Cards Grid */}
-      {displayedList.length > 0 ? (
+      {isLoading ? (
+        <div className="py-16 text-center text-xs text-slate-500">
+          Loading automated sequences...
+        </div>
+      ) : automations.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {displayedList.map((wf) => (
+          {automations.map((auto) => (
             <div
-              key={wf.id}
+              key={auto.id}
               className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between space-y-4"
             >
               <div>
@@ -179,30 +542,48 @@ export function AutomationBuilderPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-sm text-slate-900">
-                        {wf.name}
+                        {auto.name}
                       </h3>
                       <StatusBadge
-                        status={wf.isActive ? "active" : "paused"}
-                        label={wf.isActive ? "Running" : "Paused"}
+                        status={
+                          auto.status === "ACTIVE"
+                            ? "active"
+                            : auto.status === "PAUSED"
+                            ? "paused"
+                            : "draft"
+                        }
+                        label={auto.status}
                       />
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      {wf.description}
+                      {auto.description || "Trigger-based automated customer journey"}
                     </p>
                   </div>
 
                   {/* Active / Pause Switch */}
                   <button
                     type="button"
-                    onClick={() => toggleWorkflowStatus(wf.id)}
+                    onClick={() => {
+                      if (auto.status === "ACTIVE") {
+                        pauseMutation.mutate(auto.id);
+                      } else {
+                        activateMutation.mutate(auto.id);
+                      }
+                    }}
                     className={`h-6 w-11 rounded-full p-0.5 transition-colors focus:outline-none shrink-0 ${
-                      wf.isActive ? "bg-indigo-600" : "bg-slate-200"
+                      auto.status === "ACTIVE" ? "bg-indigo-600" : "bg-slate-200"
                     }`}
-                    title={wf.isActive ? "Pause workflow" : "Activate workflow"}
+                    title={
+                      auto.status === "ACTIVE"
+                        ? "Pause workflow"
+                        : "Activate workflow"
+                    }
                   >
                     <div
                       className={`h-5 w-5 rounded-full bg-white shadow-xs transition-transform ${
-                        wf.isActive ? "translate-x-5" : "translate-x-0"
+                        auto.status === "ACTIVE"
+                          ? "translate-x-5"
+                          : "translate-x-0"
                       }`}
                     />
                   </button>
@@ -211,13 +592,21 @@ export function AutomationBuilderPage() {
                 {/* Workflow Flow Steps Visual Preview */}
                 <div className="mt-4 p-3 rounded-lg bg-slate-50/70 border border-slate-100 flex items-center justify-between text-xs text-slate-600">
                   <div className="flex items-center gap-1.5 font-medium">
-                    <Zap className="h-3.5 w-3.5 text-amber-500" />
-                    <span>Trigger: {getTriggerLabel(wf.triggerType)}</span>
+                    <Zap className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>
+                      {auto.triggerType === "contact_subscribed"
+                        ? "New Contact"
+                        : auto.triggerType === "tag_assigned"
+                        ? "Tag Applied"
+                        : auto.triggerType === "contact_added_to_list"
+                        ? "List Enrolled"
+                        : "Trigger Event"}
+                    </span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-300" />
                   <div className="flex items-center gap-1 font-mono text-[11px] text-slate-500">
                     <GitBranch className="h-3 w-3 text-indigo-500" />
-                    <span>{wf.stepCount} Steps</span>
+                    <span>{auto.stepCount || 1} Actions</span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-300" />
                   <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
@@ -232,33 +621,55 @@ export function AutomationBuilderPage() {
                 <div className="flex items-center gap-4 text-slate-500">
                   <span className="flex items-center gap-1">
                     <Users className="h-3.5 w-3.5 text-slate-400" />
-                    <strong className="text-slate-700">{wf.totalEnrolled.toLocaleString()}</strong> enrolled
+                    <strong className="text-slate-700">
+                      {(auto.totalEnrolled || 0).toLocaleString()}
+                    </strong>{" "}
+                    enrolled
                   </span>
                   <span>&bull;</span>
                   <span>
-                    Last fired: <strong className="text-slate-700">{wf.lastTriggeredAt}</strong>
+                    <strong>{(auto.completedCount || 0).toLocaleString()}</strong> completed
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedWorkflowPreview(wf)}
+                    onClick={() => {
+                      setHistoryAutomation(auto);
+                      setSelectedExecutionId(null);
+                    }}
                     className="h-7 px-2 text-xs text-slate-600 hover:text-indigo-600"
+                    title="View live runs and step audit trail"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1" />
-                    Inspect
+                    <History className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                    Runs
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenEditor(auto)}
+                    className="h-7 px-2.5 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-medium"
+                  >
+                    Visual Editor
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() =>
-                      alert(`Editing flow for ${wf.name} (ready for Phase 7 flow designer).`)
-                    }
-                    className="h-7 px-2 text-xs text-indigo-600 font-medium"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Are you sure you want to delete "${auto.name}"?`
+                        )
+                      ) {
+                        deleteMutation.mutate(auto.id);
+                      }
+                    }}
+                    className="h-7 px-1.5 text-xs text-slate-400 hover:text-rose-600"
+                    title="Delete workflow"
                   >
-                    Edit Flow
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -268,68 +679,692 @@ export function AutomationBuilderPage() {
       ) : (
         <EmptyState
           icon={Workflow}
-          title="No automations configured"
-          description={
-            showEmptyState
-              ? "You haven't set up any automated journeys yet. Engage leads automatically with triggered emails."
-              : "No workflows matched your search filter."
-          }
+          title="No automations found"
+          description="Build triggered drip sequences, welcome series, or condition-based onboarding journeys."
           actionLabel="Create First Automation"
-          onAction={() => setShowEmptyState(false)}
+          onAction={() => setIsCreateModalOpen(true)}
         />
       )}
 
-      {/* Workflow Inspect Drawer Modal */}
-      {selectedWorkflowPreview && (
+      {/* ========================================================= */}
+      {/* VISUAL WORKFLOW BUILDER MODAL / FULLSCREEN CANVAS         */}
+      {/* ========================================================= */}
+      {isEditorOpen && editingAutomation && (
+        <div
+          className={`fixed z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 ${
+            isFullscreen ? "inset-0 p-0" : "inset-0"
+          }`}
+        >
+          <div
+            className={`w-full bg-white flex flex-col shadow-2xl overflow-hidden border border-slate-200 ${
+              isFullscreen
+                ? "h-full rounded-none"
+                : "h-[92vh] max-w-7xl rounded-2xl"
+            }`}
+          >
+            {/* Top Studio Toolbar */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <Workflow className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-semibold text-sm text-slate-900">
+                      {editingAutomation.name}
+                    </h2>
+                    <StatusBadge
+                      status={
+                        editingAutomation.status === "ACTIVE"
+                          ? "active"
+                          : editingAutomation.status === "PAUSED"
+                          ? "paused"
+                          : "draft"
+                      }
+                      label={editingAutomation.status}
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Visual Workflow Designer &middot; Drag handles to connect steps
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleValidateWorkflow}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-indigo-500" />
+                  Validate Graph
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveFlow}
+                  disabled={saveWorkflowMutation.isPending}
+                  className="h-8 text-xs gap-1.5 border-slate-300"
+                >
+                  <Save className="h-3.5 w-3.5 text-slate-600" />
+                  Save Draft
+                </Button>
+
+                {editingAutomation.status === "ACTIVE" ? (
+                  <Button
+                    size="sm"
+                    onClick={() => pauseMutation.mutate(editingAutomation.id)}
+                    className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                    Pause Workflow
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await handleSaveFlow();
+                      activateMutation.mutate(editingAutomation.id);
+                    }}
+                    className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Activate
+                  </Button>
+                )}
+
+                <div className="h-4 w-px bg-slate-200 mx-1" />
+
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsEditorOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                  title="Close Studio"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Validation Alert Banners if present */}
+            {validationErrors.length > 0 && (
+              <div className="bg-rose-50 border-b border-rose-200 px-5 py-2 flex items-center justify-between text-xs text-rose-800">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>
+                    <strong>Validation Blockers:</strong> {validationErrors.join("; ")}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setValidationErrors([])}
+                  className="text-rose-500 hover:text-rose-700 font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            {validationWarnings.length > 0 && (
+              <div className="bg-amber-50 border-b border-amber-200 px-5 py-2 flex items-center justify-between text-xs text-amber-800">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Warnings:</strong> {validationWarnings.join("; ")}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setValidationWarnings([])}
+                  className="text-amber-500 hover:text-amber-700 font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            {/* Main Interactive Canvas Area */}
+            <div className="flex-1 flex overflow-hidden relative">
+              {/* ReactFlow Canvas */}
+              <div className="flex-1 h-full bg-slate-50/50">
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  nodeTypes={nodeTypes}
+                  onNodeClick={(_evt, node) => setSelectedNode(node)}
+                  onPaneClick={() => setSelectedNode(null)}
+                  fitView
+                >
+                  <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={16}
+                    size={1}
+                    color="#cbd5e1"
+                  />
+                  <Controls className="!bg-white !border-slate-200 !shadow-sm !rounded-lg" />
+                  <MiniMap
+                    nodeStrokeColor="#6366F1"
+                    nodeColor="#e0e7ff"
+                    className="!bg-white !border-slate-200 !shadow-sm !rounded-lg"
+                  />
+
+                  {/* Add Node Floating Palette Panel */}
+                  <Panel
+                    position="top-left"
+                    className="bg-white/95 backdrop-blur-xs p-2 rounded-xl border border-slate-200 shadow-md flex items-center gap-1.5 text-xs"
+                  >
+                    <span className="text-[11px] font-semibold text-slate-400 px-2 uppercase tracking-wider">
+                      Add Step:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAddNode("send_email", {
+                          label: "Send Email",
+                          subject: "Automated Message",
+                          htmlContent: "<p>Hello! Welcome to MailPilot.</p>",
+                        })
+                      }
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-sky-600" />
+                      <span>Send Email</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAddNode("delay", {
+                          label: "Wait 1 Hour",
+                          duration: 1,
+                          unit: "hours",
+                        })
+                      }
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-amber-600" />
+                      <span>Time Delay</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAddNode("condition", {
+                          label: "Has Tag VIP?",
+                          conditionType: "has_tag",
+                          conditionValue: "VIP",
+                        })
+                      }
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
+                    >
+                      <GitBranch className="h-3.5 w-3.5 text-violet-600" />
+                      <span>Condition</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAddNode("add_tag", {
+                          label: "Apply Tag",
+                          tagName: "Engaged",
+                        })
+                      }
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                    >
+                      <Tag className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Add Tag</span>
+                    </button>
+                  </Panel>
+                </ReactFlow>
+              </div>
+
+              {/* Node Configuration Slide-Over Panel */}
+              {selectedNode && (
+                <div className="w-80 border-l border-slate-200 bg-white p-5 flex flex-col justify-between overflow-y-auto shrink-0 shadow-lg animate-in slide-in-from-right-4 duration-150">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-indigo-600" />
+                        <h3 className="font-semibold text-xs text-slate-900 uppercase tracking-wide">
+                          Step Settings
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNode(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Step Label */}
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Step Label
+                      </label>
+                      <input
+                        type="text"
+                        value={String(selectedNode.data?.label || "")}
+                        onChange={(e) =>
+                          handleUpdateSelectedNodeData({ label: e.target.value })
+                        }
+                        className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    {/* Node-specific configuration fields */}
+                    {selectedNode.type === "delay" && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Duration
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={Number(selectedNode.data?.duration ?? 1)}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                duration: Number(e.target.value) || 1,
+                              })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Time Unit
+                          </label>
+                          <select
+                            value={String(selectedNode.data?.unit || "hours")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({ unit: e.target.value })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white"
+                          >
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                            <option value="days">Days</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedNode.type === "send_email" && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Subject Line <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Welcome aboard!"
+                            value={String(selectedNode.data?.subject || "")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                subject: e.target.value,
+                              })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            HTML Email Body
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={String(selectedNode.data?.htmlContent || "")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                htmlContent: e.target.value,
+                              })
+                            }
+                            className="w-full text-xs font-mono rounded-lg border border-slate-200 p-2.5 leading-relaxed"
+                            placeholder="<p>Hello {{first_name}},</p>"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedNode.type === "condition" && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Condition Rule
+                          </label>
+                          <select
+                            value={String(selectedNode.data?.conditionType || "has_tag")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                conditionType: e.target.value,
+                              })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white"
+                          >
+                            <option value="has_tag">Contact has tag</option>
+                            <option value="in_list">Contact is in list</option>
+                            <option value="domain_matches">
+                              Email domain matches
+                            </option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Match Value
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={
+                              selectedNode.data?.conditionType === "domain_matches"
+                                ? "@acme.com"
+                                : "VIP"
+                            }
+                            value={String(selectedNode.data?.conditionValue || selectedNode.data?.value || "")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                conditionValue: e.target.value,
+                                value: e.target.value,
+                              })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                          />
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-violet-50/70 border border-violet-100 text-[11px] text-violet-800 space-y-1">
+                          <div className="font-semibold">Branching Directions:</div>
+                          <div>&bull; Connect from <strong>Yes</strong> handle for contacts meeting rule</div>
+                          <div>&bull; Connect from <strong>No</strong> handle for fallback branch</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {(selectedNode.type === "add_tag" ||
+                      selectedNode.type === "remove_tag") && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Tag Name
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. VIP, Onboarded"
+                            value={String(selectedNode.data?.tagName || "")}
+                            onChange={(e) =>
+                              handleUpdateSelectedNodeData({
+                                tagName: e.target.value,
+                              })
+                            }
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Node action */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteSelectedNode}
+                      className="w-full text-xs text-rose-600 hover:bg-rose-50 border-rose-200 gap-1.5"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Step
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* EXECUTION RUNS & AUDIT TIMELINE DRAWER                    */}
+      {/* ========================================================= */}
+      {historyAutomation && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-200">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-indigo-600" />
+                  <h3 className="font-semibold text-sm text-slate-900">
+                    Execution History
+                  </h3>
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Workflow: <strong>{historyAutomation.name}</strong>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryAutomation(null)}
+                className="p-1 rounded text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Content: List of Runs & Step Detail */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {isLoadingExecutions ? (
+                <div className="text-center py-10 text-xs text-slate-500">
+                  Loading execution runs...
+                </div>
+              ) : executionsData?.items && executionsData.items.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Recent Enrolled Contacts ({executionsData.items.length})
+                  </div>
+                  {executionsData.items.map((exec) => {
+                    const isSelected = selectedExecutionId === exec.id;
+                    return (
+                      <div
+                        key={exec.id}
+                        onClick={() =>
+                          setSelectedExecutionId(isSelected ? null : exec.id)
+                        }
+                        className={`rounded-xl border p-3.5 text-xs transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-indigo-500 bg-indigo-50/30 shadow-xs"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-semibold text-slate-900">
+                            {exec.contact?.email || "Unknown Contact"}
+                          </span>
+                          <StatusBadge
+                            status={
+                              exec.status === "COMPLETED"
+                                ? "completed"
+                                : exec.status === "RUNNING"
+                                ? "active"
+                                : "failed"
+                            }
+                            label={exec.status}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            Started: {new Date(exec.startedAt).toLocaleTimeString()}
+                          </span>
+                          <span>{exec.stepCount} steps executed</span>
+                        </div>
+
+                        {/* Expanded Step Timeline */}
+                        {isSelected && executionDetail && (
+                          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                            <div className="text-[11px] font-semibold text-slate-700">
+                              Step-by-step Audit Trail:
+                            </div>
+                            <div className="space-y-1.5 pl-2 border-l-2 border-indigo-200">
+                              {(executionDetail.stepExecutions || []).map((step, idx) => (
+                                <div
+                                  key={step.id || idx}
+                                  className="text-[11px] bg-slate-50 p-2 rounded border border-slate-200/60"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-slate-800">
+                                      Node: {step.nodeId} ({step.nodeType})
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-bold uppercase ${
+                                        step.status === "COMPLETED"
+                                          ? "text-emerald-600"
+                                          : step.status === "SKIPPED"
+                                          ? "text-amber-600"
+                                          : "text-slate-500"
+                                      }`}
+                                    >
+                                      {step.status}
+                                    </span>
+                                  </div>
+                                  {step.result && (
+                                    <pre className="mt-1 text-[10px] font-mono text-slate-500 overflow-x-auto bg-white p-1 rounded border border-slate-100">
+                                      {JSON.stringify(step.result, null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-xs text-slate-500">
+                  No contacts have entered this automation yet.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHistoryAutomation(null)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* CREATE NEW AUTOMATION MODAL                               */}
+      {/* ========================================================= */}
+      {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Workflow className="h-4 w-4 text-indigo-600" />
                 <h3 className="text-sm font-semibold text-slate-900">
-                  {selectedWorkflowPreview.name}
+                  Create New Automation
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedWorkflowPreview(null)}
+                onClick={() => setIsCreateModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 space-y-3 text-xs">
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 space-y-2">
-                <div className="font-semibold text-slate-900">Step 1: Ingestion Trigger</div>
-                <p className="text-slate-500">
-                  Listens to webhook event <code>user.created</code> from Supabase Authentication.
-                </p>
+            <div className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Automation Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. VIP Customer Onboarding"
+                  value={newWorkflowName}
+                  onChange={(e) => setNewWorkflowName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 space-y-2">
-                <div className="font-semibold text-slate-900">Step 2: Time Delay</div>
-                <p className="text-slate-500">
-                  Wait 10 minutes before dispatching initial welcome message.
-                </p>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Nurture sequence triggered when new customers sign up"
+                  value={newWorkflowDesc}
+                  onChange={(e) => setNewWorkflowDesc(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 space-y-2">
-                <div className="font-semibold text-slate-900">Step 3: Dispatch Email</div>
-                <p className="text-slate-500">
-                  Send template <strong>"Modern SaaS Product Launch"</strong> with personal merge tags.
-                </p>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Starting Trigger
+                </label>
+                <select
+                  value={newTriggerType}
+                  onChange={(e) => setNewTriggerType(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="contact_subscribed">Contact Subscribed / Registered</option>
+                  <option value="tag_assigned">Tag Applied to Contact</option>
+                  <option value="contact_added_to_list">Contact Added to List</option>
+                </select>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedWorkflowPreview(null)}
+                onClick={() => setIsCreateModalOpen(false)}
                 className="text-xs"
               >
-                Close
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!newWorkflowName.trim() || createMutation.isPending}
+                onClick={() =>
+                  createMutation.mutate({
+                    name: newWorkflowName.trim(),
+                    description: newWorkflowDesc.trim() || undefined,
+                    triggerType: newTriggerType,
+                  })
+                }
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Launch Visual Studio
               </Button>
             </div>
           </div>

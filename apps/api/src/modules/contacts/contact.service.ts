@@ -1,5 +1,6 @@
 import { prisma } from "../../config/database";
 import { ContactStatus, ContactSource, ImportJobStatus } from "@prisma/client";
+import { AutomationService } from "../automations/automation.service";
 
 export interface PaginationParams {
   page?: number;
@@ -300,6 +301,15 @@ export class ContactService {
         tagAssignments: { include: { tag: true } },
         listMemberships: { include: { list: true } },
       },
+    });
+
+    // Ingest workflow trigger for new contact subscription
+    AutomationService.triggerAutomationsForEvent(
+      workspaceId,
+      "contact_subscribed",
+      contact.id
+    ).catch((err) => {
+      console.error("[AutomationTrigger] Error triggering contact_subscribed:", err.message);
     });
 
     return {
@@ -636,6 +646,16 @@ export class ContactService {
           },
         });
         addedCount++;
+
+        // Ingest workflow trigger for list membership
+        AutomationService.triggerAutomationsForEvent(
+          workspaceId,
+          "contact_added_to_list",
+          contact.id,
+          { listId }
+        ).catch((err) => {
+          console.error("[AutomationTrigger] Error triggering contact_added_to_list:", err.message);
+        });
       } catch {
         // Skip duplicate
       }
@@ -802,6 +822,16 @@ export class ContactService {
         contactId,
         tagId,
       },
+    });
+
+    // Ingest workflow trigger for tag assignment
+    AutomationService.triggerAutomationsForEvent(
+      workspaceId,
+      "tag_assigned",
+      contactId,
+      { tagId }
+    ).catch((err) => {
+      console.error("[AutomationTrigger] Error triggering tag_assigned:", err.message);
     });
 
     return { contactId, tagId };

@@ -21,6 +21,16 @@ import type {
   CampaignAnalyticsItem,
   CampaignDetailAnalytics,
   EngagementInsights,
+  Automation,
+  AutomationExecution,
+  AutomationExecutionDetail,
+  WorkflowValidationResult,
+  WorkflowDefinition,
+  AIStatusResponse,
+  AISubjectLinesResponse,
+  AIDraftResponse,
+  AIPreheadersResponse,
+  AIImproveResponse,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -715,6 +725,152 @@ export const api = {
     if (params?.endDate) q.set("endDate", params.endDate);
     const queryStr = q.toString() ? `?${q.toString()}` : "";
     return apiRequest(`/api/analytics/engagement${queryStr}`);
+  },
+
+  // ==========================================
+  // Automations (Phase 9)
+  // ==========================================
+  async getAutomations(params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: Automation[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.search) q.set("search", params.search);
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/automations${queryStr}`);
+  },
+
+  async getAutomation(id: string): Promise<Automation> {
+    return apiRequest(`/api/automations/${id}`);
+  },
+
+  async createAutomation(data: {
+    name: string;
+    description?: string;
+    triggerType?: string;
+    workflowDefinition?: WorkflowDefinition;
+  }): Promise<Automation> {
+    return apiRequest("/api/automations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateAutomation(
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      triggerType?: string;
+      workflowDefinition?: WorkflowDefinition;
+    }
+  ): Promise<Automation> {
+    return apiRequest(`/api/automations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteAutomation(id: string): Promise<{ id: string; deleted: boolean }> {
+    return apiRequest(`/api/automations/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async validateAutomation(id: string): Promise<WorkflowValidationResult> {
+    return apiRequest(`/api/automations/${id}/validate`, {
+      method: "POST",
+    });
+  },
+
+  async activateAutomation(id: string): Promise<Automation> {
+    return apiRequest(`/api/automations/${id}/activate`, {
+      method: "POST",
+    });
+  },
+
+  async pauseAutomation(id: string): Promise<Automation> {
+    return apiRequest(`/api/automations/${id}/pause`, {
+      method: "POST",
+    });
+  },
+
+  async getAutomationExecutions(
+    id: string,
+    params?: { page?: number; limit?: number; status?: string }
+  ): Promise<{ items: AutomationExecution[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.status) q.set("status", params.status);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/automations/${id}/executions${queryStr}`);
+  },
+
+  async getAutomationExecutionDetail(
+    id: string,
+    executionId: string
+  ): Promise<AutomationExecutionDetail> {
+    return apiRequest(`/api/automations/${id}/executions/${executionId}`);
+  },
+
+  // ==========================================
+  // AI Campaign Copilot (Phase 9)
+  // ==========================================
+  async getAIStatus(): Promise<AIStatusResponse> {
+    return apiRequest("/api/ai/status");
+  },
+
+  async generateSubjectLines(data: {
+    purpose: string;
+    audience?: string;
+    tone?: string;
+    count?: number;
+  }): Promise<AISubjectLinesResponse> {
+    return apiRequest("/api/ai/subject-lines", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async generateEmailDraft(data: {
+    goal: string;
+    productDetails?: string;
+    audience?: string;
+    tone?: string;
+    cta?: string;
+  }): Promise<AIDraftResponse> {
+    return apiRequest("/api/ai/generate-email", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async generatePreheader(data: {
+    subject: string;
+    emailContent?: string;
+    count?: number;
+  }): Promise<AIPreheadersResponse> {
+    return apiRequest("/api/ai/generate-preheader", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async improveCampaign(data: {
+    subject?: string;
+    preheader?: string;
+    htmlContent?: string;
+  }): Promise<AIImproveResponse> {
+    return apiRequest("/api/ai/improve-campaign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
 

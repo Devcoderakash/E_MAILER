@@ -432,3 +432,129 @@ export interface EngagementInsights {
   }[];
   totalClickEvents: number;
 }
+
+// ==========================================
+// Phase 9: Automations & AI Campaign Copilot
+// ==========================================
+
+export type AutomationStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
+export type AutomationExecutionStatus = "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type AutomationStepStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "SKIPPED";
+
+export interface WorkflowNode {
+  id: string;
+  type: string;
+  data: Record<string, any>;
+  position: { x: number; y: number };
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  label?: string;
+}
+
+export interface WorkflowDefinition {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  description: string | null;
+  status: AutomationStatus;
+  triggerType: string;
+  workflowDefinition?: WorkflowDefinition;
+  stepCount?: number;
+  totalEnrolled?: number;
+  completedCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt: string | null;
+}
+
+export interface AutomationExecution {
+  id: string;
+  status: AutomationExecutionStatus;
+  currentNodeId: string | null;
+  stepCount: number;
+  startedAt: string;
+  completedAt: string | null;
+  errorMessage: string | null;
+  contact?: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+}
+
+export interface AutomationStepExecution {
+  id: string;
+  nodeId: string;
+  nodeType: string;
+  status: AutomationStepStatus;
+  scheduledAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+  result: Record<string, any> | null;
+  createdAt: string;
+}
+
+export interface AutomationExecutionDetail extends AutomationExecution {
+  stepExecutions: AutomationStepExecution[];
+  contextData?: Record<string, any>;
+}
+
+export interface WorkflowValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  triggerNode?: WorkflowNode;
+}
+
+// AI Copilot Types
+export interface AIStatusResponse {
+  configured: boolean;
+  provider: string;
+  model?: string;
+  notice?: string;
+}
+
+export interface AISubjectLinesResponse {
+  provider: string;
+  suggestions: string[];
+}
+
+export interface AIDraftResponse {
+  provider: string;
+  draft: {
+    subject: string;
+    preheader: string;
+    heading: string;
+    bodyHtml: string;
+    ctaText: string;
+    ctaUrl: string;
+  };
+}
+
+export interface AIPreheadersResponse {
+  provider: string;
+  suggestions: string[];
+}
+
+export interface AIImproveResponse {
+  provider: string;
+  analysis: {
+    readabilityScore: number;
+    clarityGrade: string;
+    ctaStrength: string;
+    spamRisk: string;
+    suggestions: string[];
+    spamWarnings: string[];
+  };
+}

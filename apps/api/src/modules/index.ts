@@ -10,3 +10,5 @@ export { campaignRouter } from "./campaigns/campaign.routes";
 export { scheduleRouter } from "./schedules/schedule.routes";
 export { analyticsRouter } from "./analytics/analytics.routes";
 export { webhookRouter } from "./webhooks/webhook.routes";
+export { automationRouter } from "./automations/automation.routes";
+export { aiRouter } from "./ai/ai.routes";

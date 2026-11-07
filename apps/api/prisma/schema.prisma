@@ -76,6 +76,28 @@ enum EmailEventType {
   DELIVERY_DELAYED
 }
 
+enum AutomationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AutomationExecutionStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AutomationStepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
 // Foundation User model linked to Supabase Auth UUID
 model User {
   id                String     @id @default(uuid())
@@ -110,9 +132,11 @@ model Workspace {
   contactLists   ContactList[]
   contactTags    ContactTag[]
   importJobs     ImportJob[]
-  emailTemplates EmailTemplate[]
-  campaigns      Campaign[]
-  emailEvents    EmailEvent[]
+  emailTemplates       EmailTemplate[]
+  campaigns            Campaign[]
+  emailEvents          EmailEvent[]
+  automations          Automation[]
+  automationExecutions AutomationExecution[]
 
   @@map("workspaces")
 }
@@ -150,8 +174,9 @@ model Contact {
 
   listMemberships    ContactListMember[]
   tagAssignments     ContactTagAssignment[]
-  campaignRecipients CampaignRecipient[]
-  emailEvents        EmailEvent[]
+  campaignRecipients   CampaignRecipient[]
+  emailEvents          EmailEvent[]
+  automationExecutions AutomationExecution[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -363,4 +388,68 @@ model EmailEvent {
   @@index([campaignRecipientId, eventType])
   @@index([contactId])
   @@map("email_events")
+}
+
+// Automation Workflow Model
+model Automation {
+  id                 String           @id @default(uuid())
+  workspaceId        String           @map("workspace_id")
+  workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name               String
+  description        String?
+  status             AutomationStatus @default(DRAFT)
+  triggerType        String           @map("trigger_type") // CONTACT_SUBSCRIBED, LIST_MEMBER_ADDED, TAG_ASSIGNED, etc.
+  workflowDefinition Json             @map("workflow_definition") // { nodes: [], edges: [] }
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  activatedAt        DateTime?        @map("activated_at")
+
+  executions AutomationExecution[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, triggerType])
+  @@map("automations")
+}
+
+// Automation Execution Run per Contact
+model AutomationExecution {
+  id            String                    @id @default(uuid())
+  workspaceId   String                    @map("workspace_id")
+  workspace     Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automationId  String                    @map("automation_id")
+  automation    Automation                @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  contactId     String                    @map("contact_id")
+  contact       Contact                   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  status        AutomationExecutionStatus @default(RUNNING)
+  currentNodeId String?                   @map("current_node_id")
+  startedAt     DateTime                  @default(now()) @map("started_at")
+  completedAt   DateTime?                 @map("completed_at")
+  errorMessage  String?                   @map("error_message")
+  contextData   Json?                     @map("context_data")
+
+  stepExecutions AutomationStepExecution[]
+
+  @@index([workspaceId, status])
+  @@index([automationId, status])
+  @@index([contactId])
+  @@map("automation_executions")
+}
+
+// Step-level audit log and state tracker
+model AutomationStepExecution {
+  id           String               @id @default(uuid())
+  executionId  String               @map("execution_id")
+  execution    AutomationExecution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId       String               @map("node_id")
+  nodeType     String               @map("node_type")
+  status       AutomationStepStatus @default(COMPLETED)
+  scheduledAt  DateTime?            @map("scheduled_at")
+  completedAt  DateTime?            @map("completed_at")
+  result       Json?                @map("result")
+  errorMessage String?              @map("error_message")
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  @@index([executionId])
+  @@index([nodeId])
+  @@map("automation_step_executions")
 }

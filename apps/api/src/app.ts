@@ -17,6 +17,8 @@ import {
   scheduleRouter,
   analyticsRouter,
   webhookRouter,
+  automationRouter,
+  aiRouter,
 } from "./modules";
 
 export function createApp(): Application {
@@ -109,6 +111,12 @@ export function createApp(): Application {
 
   // Analytics & Deliverability Tracking Routes
   app.use("/api/analytics", analyticsRouter);
+
+  // Automation Engine & Visual Workflow Routes
+  app.use("/api/automations", automationRouter);
+
+  // AI Campaign Copilot Routes
+  app.use("/api/ai", aiRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {
