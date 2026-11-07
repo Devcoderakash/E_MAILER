@@ -1,0 +1,23 @@
+{
+  "name": "mailpilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MailPilot — Intelligent Email Marketing & Automation SaaS Platform",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"cyan,magenta\" \"pnpm --filter @mailpilot/api dev\" \"pnpm --filter @mailpilot/web dev\"",
+    "dev:api": "pnpm --filter @mailpilot/api dev",
+    "dev:web": "pnpm --filter @mailpilot/web dev",
+    "build": "pnpm --filter @mailpilot/api build && pnpm --filter @mailpilot/web build",
+    "build:api": "pnpm --filter @mailpilot/api build",
+    "build:web": "pnpm --filter @mailpilot/web build",
+    "typecheck": "pnpm --filter @mailpilot/api typecheck && pnpm --filter @mailpilot/web typecheck",
+    "test:queue": "pnpm --filter @mailpilot/api test:queue"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

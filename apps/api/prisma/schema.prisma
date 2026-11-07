@@ -1,0 +1,35 @@
+// MailPilot Prisma Schema
+// Configured for Supabase PostgreSQL with Connection Pooling (Transaction Pooler + Direct URL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Foundation User model linked to Supabase Auth UUID
+model User {
+  id        String   @id @default(uuid())
+  supabaseId String  @unique @map("supabase_id")
+  email     String   @unique
+  name      String?
+  role      String   @default("member")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// System setting / health check record
+model SystemHealth {
+  id        String   @id @default(uuid())
+  service   String   @unique
+  status    String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_health")
+}
