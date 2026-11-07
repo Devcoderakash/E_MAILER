@@ -6,3 +6,4 @@ export {
   contactTagRouter,
 } from "./contacts/contact.routes";
 export { templateRouter } from "./templates/template.routes";
+export { campaignRouter } from "./campaigns/campaign.routes";

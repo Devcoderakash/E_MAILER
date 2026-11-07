@@ -44,41 +44,61 @@ enum TemplateStatus {
   READY
 }
 
+enum CampaignStatus {
+  DRAFT
+  QUEUED
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  FAILED
+  CANCELLED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
+}
+
 // Foundation User model linked to Supabase Auth UUID
 model User {
-  id                String            @id @default(uuid())
-  supabaseId        String            @unique @map("supabase_id")
-  email             String            @unique
+  id                String     @id @default(uuid())
+  supabaseId        String     @unique @map("supabase_id")
+  email             String     @unique
   name              String?
-  role              String            @default("member")
-  activeWorkspaceId String?           @map("active_workspace_id")
-  activeWorkspace   Workspace?        @relation("UserActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  role              String     @default("member")
+  activeWorkspaceId String?    @map("active_workspace_id")
+  activeWorkspace   Workspace? @relation("UserActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
 
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  memberships       WorkspaceMember[]
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  memberships     WorkspaceMember[]
 
   @@map("users")
 }
 
 // Workspace Organization unit for multi-tenancy
 model Workspace {
-  id          String            @id @default(uuid())
-  name        String
-  slug        String            @unique
-  ownerId     String            @map("owner_id")
-  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  ownerId   String   @map("owner_id")
+  owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  members      WorkspaceMember[]
-  activeUsers  User[]            @relation("UserActiveWorkspace")
-  contacts     Contact[]
-  contactLists ContactList[]
-  contactTags  ContactTag[]
-  importJobs   ImportJob[]
+  members        WorkspaceMember[]
+  activeUsers    User[]            @relation("UserActiveWorkspace")
+  contacts       Contact[]
+  contactLists   ContactList[]
+  contactTags    ContactTag[]
+  importJobs     ImportJob[]
   emailTemplates EmailTemplate[]
+  campaigns      Campaign[]
 
   @@map("workspaces")
 }
@@ -100,22 +120,23 @@ model WorkspaceMember {
 
 // Contact Model
 model Contact {
-  id           String                 @id @default(uuid())
-  workspaceId  String                 @map("workspace_id")
-  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  workspaceId  String        @map("workspace_id")
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   email        String
-  firstName    String?                @map("first_name")
-  lastName     String?                @map("last_name")
+  firstName    String?       @map("first_name")
+  lastName     String?       @map("last_name")
   phone        String?
   company      String?
-  status       ContactStatus          @default(ACTIVE)
-  source       ContactSource          @default(MANUAL)
-  customFields Json?                  @map("custom_fields")
-  createdAt    DateTime               @default(now()) @map("created_at")
-  updatedAt    DateTime               @updatedAt @map("updated_at")
+  status       ContactStatus @default(ACTIVE)
+  source       ContactSource @default(MANUAL)
+  customFields Json?         @map("custom_fields")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  listMemberships ContactListMember[]
-  tagAssignments  ContactTagAssignment[]
+  listMemberships    ContactListMember[]
+  tagAssignments     ContactTagAssignment[]
+  campaignRecipients CampaignRecipient[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -124,15 +145,15 @@ model Contact {
 
 // Contact List for Audience Segments
 model ContactList {
-  id          String              @id @default(uuid())
-  workspaceId String              @map("workspace_id")
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  members     ContactListMember[]
+  members ContactListMember[]
 
   @@unique([workspaceId, name])
   @@map("contact_lists")
@@ -153,12 +174,12 @@ model ContactListMember {
 
 // Contact Tag
 model ContactTag {
-  id          String                 @id @default(uuid())
-  workspaceId String                 @map("workspace_id")
-  workspace   Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   name        String
-  color       String                 @default("#4f46e5")
-  createdAt   DateTime               @default(now()) @map("created_at")
+  color       String    @default("#4f46e5")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   assignments ContactTagAssignment[]
 
@@ -216,13 +237,70 @@ model EmailTemplate {
   category      TemplateCategory @default(MARKETING)
   subject       String?
   preheader     String?
-  htmlContent   String           @db.Text @map("html_content")
+  htmlContent   String           @map("html_content") @db.Text
   editorContent Json?            @map("editor_content")
   status        TemplateStatus   @default(DRAFT)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
+  campaigns Campaign[]
+
   @@index([workspaceId, status])
   @@index([workspaceId, category])
   @@map("email_templates")
+}
+
+// Campaign Model for Campaign Manager & Email Engine
+model Campaign {
+  id             String         @id @default(uuid())
+  workspaceId    String         @map("workspace_id")
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  subject        String
+  preheader      String?
+  fromName       String         @map("from_name")
+  fromEmail      String         @map("from_email")
+  replyTo        String?        @map("reply_to")
+  templateId     String?        @map("template_id")
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  htmlContent    String         @map("html_content") @db.Text
+  status         CampaignStatus @default(DRAFT)
+  targetListIds  String[]       @default([]) @map("target_list_ids")
+  targetTagIds   String[]       @default([]) @map("target_tag_ids")
+  recipientCount Int            @default(0) @map("recipient_count")
+  sentCount      Int            @default(0) @map("sent_count")
+  failedCount    Int            @default(0) @map("failed_count")
+  scheduledAt    DateTime?      @map("scheduled_at")
+  startedAt      DateTime?      @map("started_at")
+  completedAt    DateTime?      @map("completed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  recipients CampaignRecipient[]
+
+  @@index([workspaceId, status])
+  @@map("campaigns")
+}
+
+// Campaign Recipient Snapshot & Delivery Log
+model CampaignRecipient {
+  id                String                  @id @default(uuid())
+  campaignId        String                  @map("campaign_id")
+  campaign          Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId         String?                 @map("contact_id")
+  contact           Contact?                @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  email             String
+  firstName         String?                 @map("first_name")
+  lastName          String?                 @map("last_name")
+  status            CampaignRecipientStatus @default(PENDING)
+  attempts          Int                     @default(0)
+  errorMessage      String?                 @map("error_message")
+  sentAt            DateTime?               @map("sent_at")
+  providerMessageId String?                 @map("provider_message_id")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+  @@map("campaign_recipients")
 }

@@ -63,25 +63,114 @@ export interface HealthResponse {
   };
 }
 
-export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "paused" | "failed";
+export type CampaignStatus =
+  | "DRAFT"
+  | "QUEUED"
+  | "SCHEDULED"
+  | "SENDING"
+  | "SENT"
+  | "PAUSED"
+  | "FAILED"
+  | "CANCELLED"
+  | "draft"
+  | "queued"
+  | "scheduled"
+  | "sending"
+  | "sent"
+  | "paused"
+  | "failed"
+  | "cancelled";
+
+export type CampaignRecipientStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SENT"
+  | "FAILED"
+  | "SKIPPED";
+
+export interface CampaignRecipient {
+  id: string;
+  campaignId: string;
+  contactId?: string | null;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  status: CampaignRecipientStatus;
+  attempts: number;
+  errorMessage?: string | null;
+  sentAt?: string | null;
+  providerMessageId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Campaign {
   id: string;
+  workspaceId?: string;
   name: string;
   subject: string;
+  preheader?: string | null;
+  fromName?: string;
+  fromEmail?: string;
+  replyTo?: string | null;
+  templateId?: string | null;
+  template?: { id: string; name: string; category?: string } | null;
+  htmlContent?: string;
   status: CampaignStatus;
-  audience: string;
+  targetListIds?: string[];
+  targetTagIds?: string[];
   recipientCount: number;
+  sentCount?: number;
+  failedCount?: number;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  // UI compatibility aliases
+  audience?: string;
   sentAt?: string;
   scheduledFor?: string;
-  createdAt: string;
   stats?: {
     sent: number;
-    delivered: number;
-    opens: number;
-    openRate: number;
-    clicks: number;
-    clickRate: number;
+    delivered?: number;
+    opens?: number;
+    openRate?: number;
+    clicks?: number;
+    clickRate?: number;
+  };
+}
+
+export interface CampaignStats {
+  campaignId: string;
+  status: CampaignStatus;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+  pendingCount: number;
+  processingCount: number;
+  skippedCount: number;
+  progressPercent: number;
+  deliveryRate: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+}
+
+export interface CampaignValidationResponse {
+  canSend: boolean;
+  errors: string[];
+  checklist: {
+    hasSubject: boolean;
+    hasFromEmail: boolean;
+    hasFromName: boolean;
+    hasContent: boolean;
+    hasAudience: boolean;
+  };
+  audienceSummary: {
+    totalEligibleActive: number;
+    excludedUnsubscribed: number;
+    excludedBounced: number;
   };
 }
 

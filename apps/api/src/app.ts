@@ -13,6 +13,7 @@ import {
   contactListRouter,
   contactTagRouter,
   templateRouter,
+  campaignRouter,
 } from "./modules";
 
 export function createApp(): Application {
@@ -87,6 +88,9 @@ export function createApp(): Application {
 
   // Email Template Studio Routes
   app.use("/api/templates", templateRouter);
+
+  // Campaign Manager & Email Engine Routes
+  app.use("/api/campaigns", campaignRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

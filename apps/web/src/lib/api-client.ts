@@ -9,6 +9,10 @@ import type {
   ContactTag,
   ImportJob,
   EmailTemplate,
+  Campaign,
+  CampaignRecipient,
+  CampaignStats,
+  CampaignValidationResponse,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -58,7 +62,7 @@ async function apiRequest<T>(
     throw error;
   }
 
-  return json.data as T;
+  return (json.data !== undefined ? json.data : json) as T;
 }
 
 export const api = {
@@ -404,6 +408,145 @@ export const api = {
     return apiRequest<{ id: string; name: string }>(`/api/templates/${id}`, {
       method: "DELETE",
     });
+  },
+
+  // ==========================================
+  // Campaign Manager & Email Engine API
+  // ==========================================
+
+  async getCampaigns(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }): Promise<{
+    items: Campaign[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.search) q.set("search", params.search);
+    if (params?.status && params.status !== "all") q.set("status", params.status.toUpperCase());
+    if (params?.sortBy) q.set("sortBy", params.sortBy);
+    if (params?.sortOrder) q.set("sortOrder", params.sortOrder);
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/campaigns${queryStr}`);
+  },
+
+  async getCampaign(id: string): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}`);
+  },
+
+  async createCampaign(data: {
+    name: string;
+    subject: string;
+    preheader?: string | null;
+    fromName: string;
+    fromEmail: string;
+    replyTo?: string | null;
+    templateId?: string | null;
+    htmlContent: string;
+    targetListIds?: string[];
+    targetTagIds?: string[];
+    scheduledAt?: string | null;
+  }): Promise<Campaign> {
+    return apiRequest<Campaign>("/api/campaigns", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateCampaign(
+    id: string,
+    data: Partial<{
+      name: string;
+      subject: string;
+      preheader: string | null;
+      fromName: string;
+      fromEmail: string;
+      replyTo: string | null;
+      templateId: string | null;
+      htmlContent: string;
+      targetListIds: string[];
+      targetTagIds: string[];
+      scheduledAt: string | null;
+      status: string;
+    }>
+  ): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteCampaign(id: string): Promise<{ id: string; deleted: boolean }> {
+    return apiRequest<{ id: string; deleted: boolean }>(`/api/campaigns/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async duplicateCampaign(id: string): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/duplicate`, {
+      method: "POST",
+    });
+  },
+
+  async validateCampaign(id: string): Promise<CampaignValidationResponse> {
+    return apiRequest<CampaignValidationResponse>(`/api/campaigns/${id}/validate`, {
+      method: "POST",
+    });
+  },
+
+  async sendCampaign(id: string): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/send`, {
+      method: "POST",
+    });
+  },
+
+  async cancelCampaign(id: string): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/cancel`, {
+      method: "POST",
+    });
+  },
+
+  async getCampaignRecipients(
+    id: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+    }
+  ): Promise<{
+    items: CampaignRecipient[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.search) q.set("search", params.search);
+    if (params?.status && params.status !== "all") q.set("status", params.status.toUpperCase());
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/campaigns/${id}/recipients${queryStr}`);
+  },
+
+  async getCampaignStats(id: string): Promise<CampaignStats> {
+    return apiRequest<CampaignStats>(`/api/campaigns/${id}/stats`);
   },
 };
 
