@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { useAuthStore } from "@/features/auth/use-auth-store";
 import {
   Users,
   Send,
@@ -142,7 +145,14 @@ const previewActivities: ActivityEvent[] = [
 
 export function DashboardOverviewPage() {
   const navigate = useNavigate();
-  const [isDemoData, setIsDemoData] = useState(true);
+  const { activeWorkspace } = useAuthStore();
+  const [isDemoData, setIsDemoData] = useState(false);
+
+  const { data: contactStats } = useQuery({
+    queryKey: ["contact-stats", activeWorkspace?.id],
+    queryFn: () => api.getContactStats(),
+    enabled: !!activeWorkspace?.id,
+  });
 
   // Table columns definition
   const campaignColumns: Column<Campaign>[] = [
@@ -271,10 +281,28 @@ export function DashboardOverviewPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Contacts"
-          value={isDemoData ? "12,480" : "0"}
-          change={isDemoData ? "+14.2% vs last month" : undefined}
-          trend={isDemoData ? "up" : "neutral"}
-          description={isDemoData ? "1,240 added this week" : "No contacts imported"}
+          value={
+            isDemoData
+              ? "12,480"
+              : contactStats
+              ? contactStats.total.toLocaleString()
+              : "0"
+          }
+          change={
+            isDemoData
+              ? "+14.2% vs last month"
+              : contactStats
+              ? `${contactStats.active} active`
+              : undefined
+          }
+          trend={isDemoData || (contactStats?.total ?? 0) > 0 ? "up" : "neutral"}
+          description={
+            isDemoData
+              ? "1,240 added this week"
+              : contactStats
+              ? `${contactStats.unsubscribed} unsubscribed, ${contactStats.bounced} bounced`
+              : "No contacts in active workspace"
+          }
           icon={Users}
           isDemo={isDemoData}
         />

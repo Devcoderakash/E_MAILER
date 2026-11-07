@@ -6,7 +6,13 @@ import { checkRedisHealth } from "./config/redis";
 import { checkDatabaseHealth } from "./config/database";
 import { requestLogger } from "./middleware/logger.middleware";
 import { errorHandler } from "./middleware/error.middleware";
-import { authRouter, workspaceRouter } from "./modules";
+import {
+  authRouter,
+  workspaceRouter,
+  contactRouter,
+  contactListRouter,
+  contactTagRouter,
+} from "./modules";
 
 export function createApp(): Application {
   const app = express();
@@ -20,7 +26,7 @@ export function createApp(): Application {
       origin: [env.FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"],
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
+      allowedHeaders: ["Content-Type", "Authorization", "x-workspace-id"],
     })
   );
 
@@ -72,6 +78,11 @@ export function createApp(): Application {
 
   // Workspace Multi-Tenancy Routes
   app.use("/api/workspaces", workspaceRouter);
+
+  // Contact Management Routes
+  app.use("/api/contacts", contactRouter);
+  app.use("/api/contact-lists", contactListRouter);
+  app.use("/api/contact-tags", contactTagRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

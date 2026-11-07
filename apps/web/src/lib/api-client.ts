@@ -1,5 +1,15 @@
 import { supabase } from "./supabase";
-import type { AuthMeResponse, Workspace, UserProfile } from "@/types";
+import type {
+  AuthMeResponse,
+  Workspace,
+  UserProfile,
+  Contact,
+  ContactStats,
+  ContactList,
+  ContactTag,
+  ImportJob,
+} from "@/types";
+import { useAuthStore } from "@/features/auth/use-auth-store";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -24,6 +34,11 @@ async function apiRequest<T>(
   headers.set("Content-Type", "application/json");
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const activeWorkspaceId = useAuthStore.getState().activeWorkspace?.id;
+  if (activeWorkspaceId && !headers.has("x-workspace-id")) {
+    headers.set("x-workspace-id", activeWorkspaceId);
   }
 
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -97,6 +112,208 @@ export const api = {
     return apiRequest<{ activeWorkspace: Workspace }>(`/api/workspaces/${id}/switch`, {
       method: "POST",
     });
+  },
+
+  // ==========================================
+  // Contacts API
+  // ==========================================
+
+  async getContacts(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    tagId?: string;
+    listId?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }): Promise<{
+    contacts: Contact[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.search) q.set("search", params.search);
+    if (params?.status && params.status !== "all") q.set("status", params.status);
+    if (params?.tagId && params.tagId !== "all") q.set("tagId", params.tagId);
+    if (params?.listId && params.listId !== "all") q.set("listId", params.listId);
+    if (params?.sortBy) q.set("sortBy", params.sortBy);
+    if (params?.sortOrder) q.set("sortOrder", params.sortOrder);
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest<{
+      contacts: Contact[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/api/contacts${queryStr}`);
+  },
+
+  async getContactStats(): Promise<ContactStats> {
+    return apiRequest<ContactStats>("/api/contacts/stats");
+  },
+
+  async getContact(id: string): Promise<{ contact: Contact }> {
+    return apiRequest<{ contact: Contact }>(`/api/contacts/${id}`);
+  },
+
+  async createContact(data: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    company?: string;
+    status?: string;
+    tags?: string[];
+    listIds?: string[];
+    customFields?: Record<string, any>;
+  }): Promise<{ contact: Contact }> {
+    return apiRequest<{ contact: Contact }>("/api/contacts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateContact(
+    id: string,
+    data: Partial<{
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      phone: string | null;
+      company: string | null;
+      status: string;
+      tags: string[];
+      listIds: string[];
+      customFields: Record<string, any>;
+    }>
+  ): Promise<{ contact: Contact }> {
+    return apiRequest<{ contact: Contact }>(`/api/contacts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteContact(id: string): Promise<{ id: string; email: string }> {
+    return apiRequest<{ id: string; email: string }>(`/api/contacts/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async bulkDeleteContacts(ids: string[]): Promise<{ count: number }> {
+    return apiRequest<{ count: number }>("/api/contacts/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+  },
+
+  // ==========================================
+  // Contact Lists API
+  // ==========================================
+
+  async getContactLists(): Promise<{ lists: ContactList[] }> {
+    return apiRequest<{ lists: ContactList[] }>("/api/contact-lists");
+  },
+
+  async createContactList(data: {
+    name: string;
+    description?: string;
+  }): Promise<{ list: ContactList }> {
+    return apiRequest<{ list: ContactList }>("/api/contact-lists", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateContactList(
+    id: string,
+    data: { name: string; description?: string }
+  ): Promise<{ list: ContactList }> {
+    return apiRequest<{ list: ContactList }>(`/api/contact-lists/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteContactList(id: string): Promise<{ id: string; name: string }> {
+    return apiRequest<{ id: string; name: string }>(`/api/contact-lists/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // ==========================================
+  // Contact Tags API
+  // ==========================================
+
+  async getContactTags(): Promise<{ tags: ContactTag[] }> {
+    return apiRequest<{ tags: ContactTag[] }>("/api/contact-tags");
+  },
+
+  async createContactTag(data: {
+    name: string;
+    color?: string;
+  }): Promise<{ tag: ContactTag }> {
+    return apiRequest<{ tag: ContactTag }>("/api/contact-tags", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateContactTag(
+    id: string,
+    data: { name: string; color?: string }
+  ): Promise<{ tag: ContactTag }> {
+    return apiRequest<{ tag: ContactTag }>(`/api/contact-tags/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteContactTag(id: string): Promise<{ id: string; name: string }> {
+    return apiRequest<{ id: string; name: string }>(`/api/contact-tags/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // ==========================================
+  // CSV Import API
+  // ==========================================
+
+  async importContacts(data: {
+    fileName: string;
+    rows: Array<{
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      company?: string;
+      tags?: string[];
+      customFields?: Record<string, any>;
+    }>;
+    tags?: string[];
+    listIds?: string[];
+  }): Promise<{
+    jobId: string;
+    totalRows: number;
+    importedRows: number;
+    skippedRows: number;
+    failedRows: number;
+    status: string;
+    errors: Array<{ row: number; email?: string; error: string }>;
+  }> {
+    return apiRequest("/api/contacts/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getImportJobs(): Promise<{ jobs: ImportJob[] }> {
+    return apiRequest<{ jobs: ImportJob[] }>("/api/contacts/import-jobs");
   },
 };
 

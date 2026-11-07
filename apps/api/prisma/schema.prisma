@@ -11,6 +11,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum ContactStatus {
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+enum ContactSource {
+  MANUAL
+  CSV
+  API
+}
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // Foundation User model linked to Supabase Auth UUID
 model User {
   id                String            @id @default(uuid())
@@ -39,8 +58,12 @@ model Workspace {
   createdAt   DateTime          @default(now()) @map("created_at")
   updatedAt   DateTime          @updatedAt @map("updated_at")
 
-  members     WorkspaceMember[]
-  activeUsers User[]            @relation("UserActiveWorkspace")
+  members      WorkspaceMember[]
+  activeUsers  User[]            @relation("UserActiveWorkspace")
+  contacts     Contact[]
+  contactLists ContactList[]
+  contactTags  ContactTag[]
+  importJobs   ImportJob[]
 
   @@map("workspaces")
 }
@@ -58,6 +81,104 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@map("workspace_members")
+}
+
+// Contact Model
+model Contact {
+  id           String                 @id @default(uuid())
+  workspaceId  String                 @map("workspace_id")
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email        String
+  firstName    String?                @map("first_name")
+  lastName     String?                @map("last_name")
+  phone        String?
+  company      String?
+  status       ContactStatus          @default(ACTIVE)
+  source       ContactSource          @default(MANUAL)
+  customFields Json?                  @map("custom_fields")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+
+  listMemberships ContactListMember[]
+  tagAssignments  ContactTagAssignment[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, status])
+  @@map("contacts")
+}
+
+// Contact List for Audience Segments
+model ContactList {
+  id          String              @id @default(uuid())
+  workspaceId String              @map("workspace_id")
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  members     ContactListMember[]
+
+  @@unique([workspaceId, name])
+  @@map("contact_lists")
+}
+
+// Contact List Membership
+model ContactListMember {
+  id        String      @id @default(uuid())
+  contactId String      @map("contact_id")
+  contact   Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  listId    String      @map("list_id")
+  list      ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@unique([contactId, listId])
+  @@map("contact_list_members")
+}
+
+// Contact Tag
+model ContactTag {
+  id          String                 @id @default(uuid())
+  workspaceId String                 @map("workspace_id")
+  workspace   Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  color       String                 @default("#4f46e5")
+  createdAt   DateTime               @default(now()) @map("created_at")
+
+  assignments ContactTagAssignment[]
+
+  @@unique([workspaceId, name])
+  @@map("contact_tags")
+}
+
+// Contact Tag Assignment
+model ContactTagAssignment {
+  id        String     @id @default(uuid())
+  contactId String     @map("contact_id")
+  contact   Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tagId     String     @map("tag_id")
+  tag       ContactTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tagId])
+  @@map("contact_tag_assignments")
+}
+
+// CSV Batch Import Job Tracker
+model ImportJob {
+  id           String          @id @default(uuid())
+  workspaceId  String          @map("workspace_id")
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fileName     String          @map("file_name")
+  totalRows    Int             @default(0) @map("total_rows")
+  importedRows Int             @default(0) @map("imported_rows")
+  skippedRows  Int             @default(0) @map("skipped_rows")
+  failedRows   Int             @default(0) @map("failed_rows")
+  status       ImportJobStatus @default(PENDING)
+  errorReport  Json?           @map("error_report")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  completedAt  DateTime?       @map("completed_at")
+
+  @@map("import_jobs")
 }
 
 // System setting / health check record

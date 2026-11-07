@@ -85,17 +85,67 @@ export interface Campaign {
   };
 }
 
-export type ContactStatus = "active" | "unsubscribed" | "bounced" | "pending";
+export type ContactStatus = "ACTIVE" | "UNSUBSCRIBED" | "BOUNCED" | "active" | "unsubscribed" | "bounced";
+export type ContactSource = "MANUAL" | "CSV" | "API";
+
+export interface ContactTag {
+  id: string;
+  name: string;
+  color?: string;
+  count?: number;
+  createdAt?: string;
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  description?: string | null;
+  memberCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface Contact {
   id: string;
+  workspaceId?: string;
   email: string;
-  name?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  company?: string | null;
   status: ContactStatus;
-  tags: string[];
+  source?: ContactSource;
+  tags?: Array<{ id: string; name: string; color?: string } | string>;
+  lists?: Array<{ id: string; name: string }>;
+  customFields?: Record<string, any> | null;
   createdAt: string;
+  updatedAt?: string;
   lastActiveAt?: string;
   engagementScore?: number;
+}
+
+export interface ContactStats {
+  total: number;
+  active: number;
+  unsubscribed: number;
+  bounced: number;
+  listCount: number;
+  tagCount: number;
+}
+
+export interface ImportJob {
+  id: string;
+  workspaceId: string;
+  fileName: string;
+  totalRows: number;
+  importedRows: number;
+  skippedRows: number;
+  failedRows: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  errorReport?: Array<{ row: number; email?: string; error: string }>;
+  createdAt: string;
+  completedAt?: string | null;
 }
 
 export type TemplateCategory = "marketing" | "transactional" | "newsletter" | "onboarding" | "announcement";
