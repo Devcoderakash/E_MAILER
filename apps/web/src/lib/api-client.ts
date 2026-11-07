@@ -15,6 +15,12 @@ import type {
   CampaignValidationResponse,
   ScheduleDetails,
   CalendarScheduleItem,
+  OverviewMetrics,
+  TimelineBucket,
+  DomainDeliverabilityItem,
+  CampaignAnalyticsItem,
+  CampaignDetailAnalytics,
+  EngagementInsights,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -624,6 +630,91 @@ export const api = {
     if (timezone) q.set("timezone", timezone);
     const queryStr = q.toString() ? `?${q.toString()}` : "";
     return apiRequest(`/api/schedules/${id}${queryStr}`);
+  },
+
+  // ==========================================
+  // Phase 8: Analytics & Performance API
+  // ==========================================
+
+  async getAnalyticsOverview(params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<OverviewMetrics> {
+    const q = new URLSearchParams();
+    if (params?.range) q.set("range", params.range);
+    if (params?.startDate) q.set("startDate", params.startDate);
+    if (params?.endDate) q.set("endDate", params.endDate);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest<OverviewMetrics>(`/api/analytics/overview${queryStr}`);
+  },
+
+  async getAnalyticsCampaigns(params?: {
+    range?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{
+    items: CampaignAnalyticsItem[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const q = new URLSearchParams();
+    if (params?.range) q.set("range", params.range);
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.search) q.set("search", params.search);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/analytics/campaigns${queryStr}`);
+  },
+
+  async getAnalyticsCampaignDetail(
+    id: string
+  ): Promise<CampaignDetailAnalytics> {
+    return apiRequest<CampaignDetailAnalytics>(`/api/analytics/campaigns/${id}`);
+  },
+
+  async getAnalyticsTimeline(params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{ items: TimelineBucket[] }> {
+    const q = new URLSearchParams();
+    if (params?.range) q.set("range", params.range);
+    if (params?.startDate) q.set("startDate", params.startDate);
+    if (params?.endDate) q.set("endDate", params.endDate);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/analytics/timeline${queryStr}`);
+  },
+
+  async getAnalyticsDeliverability(params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{ items: DomainDeliverabilityItem[] }> {
+    const q = new URLSearchParams();
+    if (params?.range) q.set("range", params.range);
+    if (params?.startDate) q.set("startDate", params.startDate);
+    if (params?.endDate) q.set("endDate", params.endDate);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/analytics/deliverability${queryStr}`);
+  },
+
+  async getAnalyticsEngagement(params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<EngagementInsights> {
+    const q = new URLSearchParams();
+    if (params?.range) q.set("range", params.range);
+    if (params?.startDate) q.set("startDate", params.startDate);
+    if (params?.endDate) q.set("endDate", params.endDate);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/analytics/engagement${queryStr}`);
   },
 };
 

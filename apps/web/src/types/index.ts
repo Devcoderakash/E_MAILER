@@ -122,6 +122,12 @@ export interface Campaign {
   recipientCount: number;
   sentCount?: number;
   failedCount?: number;
+  deliveredCount?: number;
+  openedCount?: number;
+  clickedCount?: number;
+  bouncedCount?: number;
+  complainedCount?: number;
+  unsubscribedCount?: number;
   scheduledAt?: string | null;
   scheduledTimezone?: string | null;
   scheduledJobId?: string | null;
@@ -333,4 +339,96 @@ export interface ActivityEvent {
   description: string;
   timestamp: string;
   status?: "success" | "pending" | "info";
+}
+
+// ==========================================
+// Phase 8: Webhooks & Analytics Types
+// ==========================================
+
+export interface OverviewMetrics {
+  sent: number;
+  delivered: number;
+  deliveryRate: number;
+  totalOpens: number;
+  uniqueOpens: number;
+  openRate: number;
+  totalClicks: number;
+  uniqueClicks: number;
+  clickRate: number;
+  bounces: number;
+  bounceRate: number;
+  complaints: number;
+  complaintRate: number;
+  unsubscribes: number;
+  unsubscribeRate: number;
+  totalCampaigns: number;
+  activeContacts: number;
+  hasProviderEvents: boolean;
+}
+
+export interface TimelineBucket {
+  date: string;
+  sent: number;
+  delivered: number;
+  opens: number;
+  clicks: number;
+  bounces: number;
+}
+
+export interface DomainDeliverabilityItem {
+  domain: string;
+  sent: number;
+  delivered: number;
+  deliveryRate: number;
+  bounces: number;
+  bounceRate: number;
+  status: "Optimal" | "Good" | "Needs Attention";
+}
+
+export interface CampaignAnalyticsItem {
+  id: string;
+  name: string;
+  subject: string;
+  status: CampaignStatus;
+  createdAt: string;
+  sentAt: string;
+  recipientCount: number;
+  sentCount: number;
+  deliveredCount: number;
+  deliveryRate: number;
+  uniqueOpens: number;
+  openRate: number;
+  uniqueClicks: number;
+  clickRate: number;
+  bouncedCount: number;
+  bounceRate: number;
+  complainedCount: number;
+  unsubscribedCount: number;
+  template?: { id: string; name: string; category?: string } | null;
+}
+
+export interface CampaignDetailAnalytics {
+  campaign: CampaignAnalyticsItem & {
+    fromName: string;
+    fromEmail: string;
+    startedAt?: string | null;
+    completedAt?: string | null;
+  };
+  recentEvents: {
+    id: string;
+    eventType: string;
+    occurredAt: string;
+    recipientEmail: string;
+    recipientName?: string | null;
+    metadata?: any;
+  }[];
+}
+
+export interface EngagementInsights {
+  topLinks: {
+    link: string;
+    totalClicks: number;
+    uniqueClicks: number;
+  }[];
+  totalClickEvents: number;
 }

@@ -23,8 +23,9 @@ const envSchema = z.object({
   // Redis & BullMQ
   REDIS_URL: z.string().min(1, "REDIS_URL is required").default("redis://127.0.0.1:6379"),
 
-  // Future Integrations
+  // Future Integrations & Webhooks
   RESEND_API_KEY: z.string().optional(),
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

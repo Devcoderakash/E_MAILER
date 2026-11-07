@@ -15,6 +15,8 @@ import {
   templateRouter,
   campaignRouter,
   scheduleRouter,
+  analyticsRouter,
+  webhookRouter,
 } from "./modules";
 
 export function createApp(): Application {
@@ -33,8 +35,14 @@ export function createApp(): Application {
     })
   );
 
-  // Body Parsing
-  app.use(express.json());
+  // Body Parsing with rawBody preservation for Webhook signature verification
+  app.use(
+    express.json({
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf.toString("utf8");
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true }));
 
   // Request Logging
@@ -95,6 +103,12 @@ export function createApp(): Application {
 
   // Schedule Center Routes
   app.use("/api/schedules", scheduleRouter);
+
+  // Webhooks Public Routes
+  app.use("/api/webhooks", webhookRouter);
+
+  // Analytics & Deliverability Tracking Routes
+  app.use("/api/analytics", analyticsRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

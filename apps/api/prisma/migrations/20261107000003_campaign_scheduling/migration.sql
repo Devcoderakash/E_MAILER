@@ -6,3 +6,4 @@ ADD COLUMN IF NOT EXISTS "scheduling_error" TEXT;
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "campaigns_workspace_id_scheduled_at_idx" ON "campaigns"("workspace_id", "scheduled_at");
+

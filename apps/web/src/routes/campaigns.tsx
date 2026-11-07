@@ -1501,6 +1501,48 @@ export function CampaignsPage() {
                 </div>
               </div>
 
+              {/* Live Webhook Engagement Stats */}
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800 text-[11px] uppercase tracking-wider">
+                    Webhook Engagement & Deliverability
+                  </span>
+                  <a
+                    href="/analytics"
+                    className="text-indigo-600 hover:text-indigo-700 font-medium text-[11px] flex items-center gap-1"
+                  >
+                    View in Analytics
+                    <ChevronRight className="h-3 w-3" />
+                  </a>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="p-2 rounded bg-indigo-50 border border-indigo-100">
+                    <div className="text-[10px] text-indigo-600 uppercase font-medium">Delivered</div>
+                    <div className="text-sm font-semibold text-indigo-700 mt-0.5">
+                      {detailsCampaign.deliveredCount ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-emerald-50 border border-emerald-100">
+                    <div className="text-[10px] text-emerald-600 uppercase font-medium">Unique Opens</div>
+                    <div className="text-sm font-semibold text-emerald-700 mt-0.5">
+                      {detailsCampaign.openedCount ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-amber-50 border border-amber-100">
+                    <div className="text-[10px] text-amber-600 uppercase font-medium">Unique Clicks</div>
+                    <div className="text-sm font-semibold text-amber-700 mt-0.5">
+                      {detailsCampaign.clickedCount ?? 0}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded bg-rose-50 border border-rose-100">
+                    <div className="text-[10px] text-rose-600 uppercase font-medium">Bounces</div>
+                    <div className="text-sm font-semibold text-rose-700 mt-0.5">
+                      {detailsCampaign.bouncedCount ?? 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Execution Metadata */}
               <div className="grid grid-cols-2 gap-3 text-slate-600">
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">

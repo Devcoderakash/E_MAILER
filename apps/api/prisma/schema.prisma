@@ -61,6 +61,19 @@ enum CampaignRecipientStatus {
   SENT
   FAILED
   SKIPPED
+  DELIVERED
+  BOUNCED
+}
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+  DELIVERY_DELAYED
 }
 
 // Foundation User model linked to Supabase Auth UUID
@@ -99,6 +112,7 @@ model Workspace {
   importJobs     ImportJob[]
   emailTemplates EmailTemplate[]
   campaigns      Campaign[]
+  emailEvents    EmailEvent[]
 
   @@map("workspaces")
 }
@@ -137,6 +151,7 @@ model Contact {
   listMemberships    ContactListMember[]
   tagAssignments     ContactTagAssignment[]
   campaignRecipients CampaignRecipient[]
+  emailEvents        EmailEvent[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -270,6 +285,12 @@ model Campaign {
   recipientCount    Int            @default(0) @map("recipient_count")
   sentCount         Int            @default(0) @map("sent_count")
   failedCount       Int            @default(0) @map("failed_count")
+  deliveredCount    Int            @default(0) @map("delivered_count")
+  openedCount       Int            @default(0) @map("opened_count")
+  clickedCount      Int            @default(0) @map("clicked_count")
+  bouncedCount      Int            @default(0) @map("bounced_count")
+  complainedCount   Int            @default(0) @map("complained_count")
+  unsubscribedCount Int            @default(0) @map("unsubscribed_count")
   scheduledAt       DateTime?      @map("scheduled_at")
   scheduledTimezone String?        @map("scheduled_timezone")
   scheduledJobId    String?        @map("scheduled_job_id")
@@ -280,7 +301,8 @@ model Campaign {
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  recipients CampaignRecipient[]
+  recipients  CampaignRecipient[]
+  emailEvents EmailEvent[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, scheduledAt])
@@ -301,11 +323,44 @@ model CampaignRecipient {
   attempts          Int                     @default(0)
   errorMessage      String?                 @map("error_message")
   sentAt            DateTime?               @map("sent_at")
+  deliveredAt       DateTime?               @map("delivered_at")
+  openedAt          DateTime?               @map("opened_at")
+  clickedAt         DateTime?               @map("clicked_at")
+  bouncedAt         DateTime?               @map("bounced_at")
   providerMessageId String?                 @map("provider_message_id")
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
 
+  emailEvents EmailEvent[]
+
   @@unique([campaignId, email])
   @@index([campaignId, status])
+  @@index([providerMessageId])
   @@map("campaign_recipients")
+}
+
+// Email Event Model for Webhooks & Analytics
+model EmailEvent {
+  id                  String            @id @default(uuid())
+  workspaceId         String            @map("workspace_id")
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaignId          String            @map("campaign_id")
+  campaign            Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignRecipientId String            @map("campaign_recipient_id")
+  campaignRecipient   CampaignRecipient @relation(fields: [campaignRecipientId], references: [id], onDelete: Cascade)
+  contactId           String?           @map("contact_id")
+  contact             Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  provider            String            @default("RESEND")
+  providerEventId     String            @map("provider_event_id")
+  eventType           EmailEventType    @map("event_type")
+  occurredAt          DateTime          @map("occurred_at")
+  metadata            Json?             @map("metadata")
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@unique([provider, providerEventId])
+  @@index([workspaceId, occurredAt])
+  @@index([campaignId, eventType])
+  @@index([campaignRecipientId, eventType])
+  @@index([contactId])
+  @@map("email_events")
 }
