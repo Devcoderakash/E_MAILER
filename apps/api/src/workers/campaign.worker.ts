@@ -3,17 +3,103 @@ import { redis } from "../config/redis";
 import { prisma } from "../config/database";
 import {
   CAMPAIGN_QUEUE_NAME,
+  CampaignJobData,
   CampaignDispatchJobData,
+  ScheduledCampaignJobData,
   CampaignDispatchJobResult,
 } from "../queues/campaign.queue";
 import { ResendProvider } from "../providers/resend.provider";
+import { CampaignService } from "../modules/campaigns/campaign.service";
 import { CampaignStatus, CampaignRecipientStatus } from "@prisma/client";
 
 export function createCampaignWorker() {
-  const worker = new Worker<CampaignDispatchJobData, CampaignDispatchJobResult>(
+  const worker = new Worker<CampaignJobData, CampaignDispatchJobResult>(
     CAMPAIGN_QUEUE_NAME,
-    async (job: Job<CampaignDispatchJobData, CampaignDispatchJobResult>) => {
-      const { campaignId, workspaceId, recipientIds, batchIndex, totalBatches } = job.data;
+    async (job: Job<CampaignJobData, CampaignDispatchJobResult>) => {
+      // ==========================================
+      // Handler 1: Scheduled Campaign Execution
+      // ==========================================
+      if (job.name === "execute-scheduled-campaign") {
+        const { campaignId, workspaceId } = job.data as ScheduledCampaignJobData;
+        console.log(
+          `[CampaignWorker] Delayed scheduled job #${job.id} triggered for campaign ${campaignId}`
+        );
+
+        const campaign = await prisma.campaign.findFirst({
+          where: { id: campaignId, workspaceId },
+        });
+
+        if (!campaign) {
+          console.warn(`[CampaignWorker] Scheduled campaign ${campaignId} not found in workspace ${workspaceId}.`);
+          return {
+            campaignId,
+            completedAt: new Date().toISOString(),
+            scheduledExecution: true,
+          };
+        }
+
+        // Only proceed if still in SCHEDULED status
+        if (campaign.status !== CampaignStatus.SCHEDULED) {
+          console.log(
+            `[CampaignWorker] Campaign ${campaignId} status is ${campaign.status} (expected SCHEDULED). Aborting scheduled send.`
+          );
+          return {
+            campaignId,
+            completedAt: new Date().toISOString(),
+            scheduledExecution: true,
+          };
+        }
+
+        // Revalidate campaign readiness before firing
+        const validation = await CampaignService.validateCampaign(workspaceId, campaignId);
+        if (!validation.canSend) {
+          const errorMsg = `Scheduled execution failed validation: ${validation.errors.join("; ")}`;
+          console.error(`[CampaignWorker] ${errorMsg}`);
+
+          await prisma.campaign.update({
+            where: { id: campaignId },
+            data: {
+              status: CampaignStatus.FAILED,
+              schedulingError: errorMsg,
+              scheduledJobId: null,
+            },
+          });
+
+          return {
+            campaignId,
+            failedCount: 1,
+            completedAt: new Date().toISOString(),
+            scheduledExecution: true,
+          };
+        }
+
+        // Trigger existing campaign sending pipeline
+        console.log(
+          `[CampaignWorker] Campaign ${campaignId} validated successfully. Handing off to sendCampaign engine...`
+        );
+        await CampaignService.sendCampaign(workspaceId, campaignId);
+
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: {
+            scheduledJobId: null,
+            schedulingError: null,
+          },
+        });
+
+        return {
+          campaignId,
+          completedAt: new Date().toISOString(),
+          scheduledExecution: true,
+        };
+      }
+
+      // ==========================================
+      // Handler 2: Batch Recipient Dispatch
+      // ==========================================
+      const { campaignId, workspaceId, recipientIds, batchIndex, totalBatches } =
+        job.data as CampaignDispatchJobData;
+
       console.log(
         `[CampaignWorker] Starting batch ${batchIndex + 1}/${totalBatches} for campaign ${campaignId} (${recipientIds.length} recipients)`
       );
@@ -32,7 +118,9 @@ export function createCampaignWorker() {
 
       // If campaign has been cancelled or paused, mark recipients as SKIPPED
       if (campaign.status === CampaignStatus.CANCELLED || campaign.status === CampaignStatus.PAUSED) {
-        console.log(`[CampaignWorker] Campaign ${campaignId} is ${campaign.status}. Skipping batch ${batchIndex + 1}.`);
+        console.log(
+          `[CampaignWorker] Campaign ${campaignId} is ${campaign.status}. Skipping batch ${batchIndex + 1}.`
+        );
         await prisma.campaignRecipient.updateMany({
           where: {
             id: { in: recipientIds },
@@ -228,11 +316,11 @@ export function createCampaignWorker() {
   );
 
   worker.on("completed", (job) => {
-    console.log(`[CampaignWorker] Job #${job.id} for batch ${job.data.batchIndex + 1} completed.`);
+    console.log(`[CampaignWorker] Job #${job.id} (${job.name}) completed.`);
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[CampaignWorker] Job #${job?.id} failed:`, err.message);
+    console.error(`[CampaignWorker] Job #${job?.id} (${job?.name}) failed:`, err.message);
   });
 
   return worker;

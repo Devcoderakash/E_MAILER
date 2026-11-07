@@ -420,22 +420,21 @@ export class CampaignService {
     });
 
     // 2. Count excluded unsubscribed and bounced contacts for reporting
-    const [unsubscribedCount, bouncedCount] = await Promise.all([
-      prisma.contact.count({
-        where: {
-          workspaceId,
-          status: ContactStatus.UNSUBSCRIBED,
-          ...audienceCondition,
-        },
-      }),
-      prisma.contact.count({
-        where: {
-          workspaceId,
-          status: ContactStatus.BOUNCED,
-          ...audienceCondition,
-        },
-      }),
-    ]);
+    const unsubscribedCount = await prisma.contact.count({
+      where: {
+        workspaceId,
+        status: ContactStatus.UNSUBSCRIBED,
+        ...audienceCondition,
+      },
+    });
+
+    const bouncedCount = await prisma.contact.count({
+      where: {
+        workspaceId,
+        status: ContactStatus.BOUNCED,
+        ...audienceCondition,
+      },
+    });
 
     // Deduplicate by normalized lowercase email
     const seenEmails = new Set<string>();

@@ -123,6 +123,10 @@ export interface Campaign {
   sentCount?: number;
   failedCount?: number;
   scheduledAt?: string | null;
+  scheduledTimezone?: string | null;
+  scheduledJobId?: string | null;
+  lastScheduledAt?: string | null;
+  schedulingError?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
   createdAt: string;
@@ -294,6 +298,32 @@ export interface ScheduledCampaign {
   targetAudience: string;
   queueStatus: "queued" | "delayed" | "processing";
   channel: string;
+}
+
+export interface ScheduleDetails {
+  campaign: Campaign;
+  queueStatus: {
+    jobId: string | null;
+    isDelayed: boolean;
+    delayRemainingMs: number;
+    state: string;
+  };
+  audienceSummary: {
+    totalEligibleActive: number;
+    excludedUnsubscribed: number;
+    excludedBounced: number;
+  };
+}
+
+export interface CalendarScheduleItem {
+  id: string;
+  name: string;
+  subject: string;
+  status: CampaignStatus;
+  scheduledAt: string;
+  formattedLocal: string;
+  userTimezone: string;
+  recipientCount: number;
 }
 
 export interface ActivityEvent {

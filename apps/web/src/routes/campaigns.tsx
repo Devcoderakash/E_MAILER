@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Play,
   RotateCcw,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -730,6 +731,16 @@ export function CampaignsPage() {
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
                             </Button>
+                          )}
+
+                          {camp.status === "SCHEDULED" && (
+                            <a
+                              href="/schedule"
+                              className="h-8 w-8 inline-flex items-center justify-center rounded p-0 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                              title="Manage in Schedule Center"
+                            >
+                              <Calendar className="h-3.5 w-3.5" />
+                            </a>
                           )}
 
                           <Button

@@ -14,6 +14,7 @@ import {
   contactTagRouter,
   templateRouter,
   campaignRouter,
+  scheduleRouter,
 } from "./modules";
 
 export function createApp(): Application {
@@ -91,6 +92,9 @@ export function createApp(): Application {
 
   // Campaign Manager & Email Engine Routes
   app.use("/api/campaigns", campaignRouter);
+
+  // Schedule Center Routes
+  app.use("/api/schedules", scheduleRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

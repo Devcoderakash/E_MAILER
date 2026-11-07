@@ -7,3 +7,4 @@ export {
 } from "./contacts/contact.routes";
 export { templateRouter } from "./templates/template.routes";
 export { campaignRouter } from "./campaigns/campaign.routes";
+export { scheduleRouter } from "./schedules/schedule.routes";

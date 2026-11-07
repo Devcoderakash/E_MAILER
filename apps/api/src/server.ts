@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { redis } from "./config/redis";
 import { prisma } from "./config/database";
 import { createCampaignWorker } from "./workers/campaign.worker";
+import { ScheduleService } from "./modules/schedules/schedule.service";
 
 const app = createApp();
 
@@ -11,6 +12,11 @@ const campaignWorker = createCampaignWorker();
 const server = app.listen(env.PORT, () => {
   console.log(`🚀 [MailPilot API] Server running on http://localhost:${env.PORT} in ${env.NODE_ENV} mode`);
   console.log(`📡 Health endpoint available at http://localhost:${env.PORT}/health`);
+
+  // Reconcile scheduled campaigns in PostgreSQL with delayed jobs in BullMQ on startup
+  ScheduleService.reconcileScheduledJobs().catch((err: any) => {
+    console.error("❌ [ScheduleService] Startup reconciliation error:", err.message);
+  });
 });
 
 let isShuttingDown = false;

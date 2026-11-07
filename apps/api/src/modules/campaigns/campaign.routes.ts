@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { CampaignController } from "./campaign.controller";
+import { ScheduleController } from "../schedules/schedule.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 
 const campaignRouter: Router = Router();
@@ -18,8 +19,14 @@ campaignRouter.post("/:id/validate", CampaignController.validate);
 campaignRouter.post("/:id/send", CampaignController.send);
 campaignRouter.post("/:id/cancel", CampaignController.cancel);
 
+// Scheduling operations
+campaignRouter.post("/:id/schedule", ScheduleController.schedule);
+campaignRouter.patch("/:id/reschedule", ScheduleController.reschedule);
+campaignRouter.post("/:id/unschedule", ScheduleController.unschedule);
+
 // Logs & Stats
 campaignRouter.get("/:id/recipients", CampaignController.getRecipients);
 campaignRouter.get("/:id/stats", CampaignController.getStats);
 
 export { campaignRouter };
+

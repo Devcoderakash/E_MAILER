@@ -252,33 +252,38 @@ model EmailTemplate {
 
 // Campaign Model for Campaign Manager & Email Engine
 model Campaign {
-  id             String         @id @default(uuid())
-  workspaceId    String         @map("workspace_id")
-  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name           String
-  subject        String
-  preheader      String?
-  fromName       String         @map("from_name")
-  fromEmail      String         @map("from_email")
-  replyTo        String?        @map("reply_to")
-  templateId     String?        @map("template_id")
-  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  htmlContent    String         @map("html_content") @db.Text
-  status         CampaignStatus @default(DRAFT)
-  targetListIds  String[]       @default([]) @map("target_list_ids")
-  targetTagIds   String[]       @default([]) @map("target_tag_ids")
-  recipientCount Int            @default(0) @map("recipient_count")
-  sentCount      Int            @default(0) @map("sent_count")
-  failedCount    Int            @default(0) @map("failed_count")
-  scheduledAt    DateTime?      @map("scheduled_at")
-  startedAt      DateTime?      @map("started_at")
-  completedAt    DateTime?      @map("completed_at")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  id                String         @id @default(uuid())
+  workspaceId       String         @map("workspace_id")
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name              String
+  subject           String
+  preheader         String?
+  fromName          String         @map("from_name")
+  fromEmail         String         @map("from_email")
+  replyTo           String?        @map("reply_to")
+  templateId        String?        @map("template_id")
+  template          EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  htmlContent       String         @map("html_content") @db.Text
+  status            CampaignStatus @default(DRAFT)
+  targetListIds     String[]       @default([]) @map("target_list_ids")
+  targetTagIds      String[]       @default([]) @map("target_tag_ids")
+  recipientCount    Int            @default(0) @map("recipient_count")
+  sentCount         Int            @default(0) @map("sent_count")
+  failedCount       Int            @default(0) @map("failed_count")
+  scheduledAt       DateTime?      @map("scheduled_at")
+  scheduledTimezone String?        @map("scheduled_timezone")
+  scheduledJobId    String?        @map("scheduled_job_id")
+  lastScheduledAt   DateTime?      @map("last_scheduled_at")
+  schedulingError   String?        @map("scheduling_error")
+  startedAt         DateTime?      @map("started_at")
+  completedAt       DateTime?      @map("completed_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
   recipients CampaignRecipient[]
 
   @@index([workspaceId, status])
+  @@index([workspaceId, scheduledAt])
   @@map("campaigns")
 }
 

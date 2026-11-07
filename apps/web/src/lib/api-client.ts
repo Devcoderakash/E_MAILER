@@ -13,6 +13,8 @@ import type {
   CampaignRecipient,
   CampaignStats,
   CampaignValidationResponse,
+  ScheduleDetails,
+  CalendarScheduleItem,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -547,6 +549,81 @@ export const api = {
 
   async getCampaignStats(id: string): Promise<CampaignStats> {
     return apiRequest<CampaignStats>(`/api/campaigns/${id}/stats`);
+  },
+
+  // ==========================================
+  // Campaign Scheduling API
+  // ==========================================
+
+  async scheduleCampaign(
+    id: string,
+    data: { scheduledAt: string; timezone?: string }
+  ): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/schedule`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async rescheduleCampaign(
+    id: string,
+    data: { scheduledAt: string; timezone?: string }
+  ): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async unscheduleCampaign(id: string): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/campaigns/${id}/unschedule`, {
+      method: "POST",
+    });
+  },
+
+  async getSchedules(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }): Promise<{
+    items: (Campaign & {
+      template?: { id: string; name: string; category: string } | null;
+      delayRemainingMs?: number;
+    })[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.status) q.set("status", params.status);
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/schedules${queryStr}`);
+  },
+
+  async getCalendarSchedules(
+    start: string,
+    end: string,
+    timezone?: string
+  ): Promise<{ items: CalendarScheduleItem[] }> {
+    const q = new URLSearchParams({ start, end });
+    if (timezone) q.set("timezone", timezone);
+    return apiRequest(`/api/schedules/calendar?${q.toString()}`);
+  },
+
+  async getScheduleDetails(
+    id: string,
+    timezone?: string
+  ): Promise<ScheduleDetails> {
+    const q = new URLSearchParams();
+    if (timezone) q.set("timezone", timezone);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest(`/api/schedules/${id}${queryStr}`);
   },
 };
 
