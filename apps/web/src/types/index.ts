@@ -148,17 +148,40 @@ export interface ImportJob {
   completedAt?: string | null;
 }
 
-export type TemplateCategory = "marketing" | "transactional" | "newsletter" | "onboarding" | "announcement";
+export type TemplateCategory =
+  | "MARKETING"
+  | "NEWSLETTER"
+  | "TRANSACTIONAL"
+  | "WELCOME"
+  | "PROMOTIONAL"
+  | "CUSTOM"
+  | "marketing"
+  | "newsletter"
+  | "transactional"
+  | "welcome"
+  | "promotional"
+  | "custom";
 
-export interface Template {
+export type TemplateStatus = "DRAFT" | "READY" | "draft" | "ready";
+
+export interface EmailTemplate {
   id: string;
+  workspaceId?: string;
   name: string;
-  description: string;
+  description?: string | null;
   category: TemplateCategory;
-  thumbnailColor: string;
-  lastModified: string;
-  tags: string[];
+  subject?: string | null;
+  preheader?: string | null;
+  htmlContent: string;
+  editorContent?: any;
+  status: TemplateStatus;
+  createdAt: string;
+  updatedAt: string;
+  thumbnailColor?: string;
+  tags?: string[];
 }
+
+export type Template = EmailTemplate;
 
 export type AutomationTriggerType = "user_signup" | "tag_added" | "cart_abandoned" | "link_clicked" | "custom_event";
 

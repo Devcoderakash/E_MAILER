@@ -30,6 +30,20 @@ enum ImportJobStatus {
   FAILED
 }
 
+enum TemplateCategory {
+  MARKETING
+  NEWSLETTER
+  TRANSACTIONAL
+  WELCOME
+  PROMOTIONAL
+  CUSTOM
+}
+
+enum TemplateStatus {
+  DRAFT
+  READY
+}
+
 // Foundation User model linked to Supabase Auth UUID
 model User {
   id                String            @id @default(uuid())
@@ -64,6 +78,7 @@ model Workspace {
   contactLists ContactList[]
   contactTags  ContactTag[]
   importJobs   ImportJob[]
+  emailTemplates EmailTemplate[]
 
   @@map("workspaces")
 }
@@ -189,4 +204,25 @@ model SystemHealth {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("system_health")
+}
+
+// Email Template Model for Email Template Studio
+model EmailTemplate {
+  id            String           @id @default(uuid())
+  workspaceId   String           @map("workspace_id")
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  category      TemplateCategory @default(MARKETING)
+  subject       String?
+  preheader     String?
+  htmlContent   String           @db.Text @map("html_content")
+  editorContent Json?            @map("editor_content")
+  status        TemplateStatus   @default(DRAFT)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, category])
+  @@map("email_templates")
 }

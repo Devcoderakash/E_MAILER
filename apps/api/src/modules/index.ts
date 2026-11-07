@@ -5,3 +5,4 @@ export {
   contactListRouter,
   contactTagRouter,
 } from "./contacts/contact.routes";
+export { templateRouter } from "./templates/template.routes";

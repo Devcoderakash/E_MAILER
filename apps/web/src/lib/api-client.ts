@@ -8,6 +8,7 @@ import type {
   ContactList,
   ContactTag,
   ImportJob,
+  EmailTemplate,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -314,6 +315,95 @@ export const api = {
 
   async getImportJobs(): Promise<{ jobs: ImportJob[] }> {
     return apiRequest<{ jobs: ImportJob[] }>("/api/contacts/import-jobs");
+  },
+
+  // ==========================================
+  // Email Template Studio API
+  // ==========================================
+
+  async getTemplates(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }): Promise<{
+    templates: EmailTemplate[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", params.page.toString());
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.search) q.set("search", params.search);
+    if (params?.category && params.category !== "all") q.set("category", params.category.toUpperCase());
+    if (params?.status && params.status !== "all") q.set("status", params.status.toUpperCase());
+    if (params?.sortBy) q.set("sortBy", params.sortBy);
+    if (params?.sortOrder) q.set("sortOrder", params.sortOrder);
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    return apiRequest<{
+      templates: EmailTemplate[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/api/templates${queryStr}`);
+  },
+
+  async getTemplate(id: string): Promise<{ template: EmailTemplate }> {
+    return apiRequest<{ template: EmailTemplate }>(`/api/templates/${id}`);
+  },
+
+  async createTemplate(data: {
+    name: string;
+    description?: string;
+    category?: string;
+    subject?: string;
+    preheader?: string;
+    htmlContent: string;
+    editorContent?: any;
+    status?: string;
+  }): Promise<{ template: EmailTemplate }> {
+    return apiRequest<{ template: EmailTemplate }>("/api/templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateTemplate(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string | null;
+      category: string;
+      subject: string | null;
+      preheader: string | null;
+      htmlContent: string;
+      editorContent: any;
+      status: string;
+    }>
+  ): Promise<{ template: EmailTemplate }> {
+    return apiRequest<{ template: EmailTemplate }>(`/api/templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async duplicateTemplate(id: string): Promise<{ template: EmailTemplate }> {
+    return apiRequest<{ template: EmailTemplate }>(`/api/templates/${id}/duplicate`, {
+      method: "POST",
+    });
+  },
+
+  async deleteTemplate(id: string): Promise<{ id: string; name: string }> {
+    return apiRequest<{ id: string; name: string }>(`/api/templates/${id}`, {
+      method: "DELETE",
+    });
   },
 };
 
