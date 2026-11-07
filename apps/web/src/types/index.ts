@@ -7,3 +7,4 @@ export interface ApiResponse<T = any> {
     details?: any;
   };
 }
+

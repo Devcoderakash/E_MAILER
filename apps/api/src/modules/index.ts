@@ -1,2 +1,1 @@
-// Export business modules in Phase 2+
-export {};
+export { authRouter } from "./auth/auth.routes";

@@ -10,8 +10,13 @@ const server = app.listen(env.PORT, () => {
   console.log(`📡 Health endpoint available at http://localhost:${env.PORT}/health`);
 });
 
+let isShuttingDown = false;
+
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
   console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
 
   server.close(async () => {
@@ -44,3 +49,4 @@ async function handleShutdown(signal: string) {
 
 process.on("SIGINT", () => handleShutdown("SIGINT"));
 process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+

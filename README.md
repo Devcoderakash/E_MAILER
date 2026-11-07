@@ -128,3 +128,4 @@ pnpm build
 1. **Strict Type-Safety:** All input parameters and environment variables are strictly verified with Zod schemas.
 2. **Hardened HTTP Gateway:** Protected with Helmet headers and restricted CORS origin policies.
 3. **JWT Bearer Token Guard:** Ready for Supabase JWT verification via `requireAuth` middleware.
+

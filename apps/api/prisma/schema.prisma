@@ -33,3 +33,4 @@ model SystemHealth {
 
   @@map("system_health")
 }
+

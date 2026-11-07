@@ -30,7 +30,15 @@ export async function requireAuth(
     return;
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = authHeader.split(" ")[1]?.trim();
+
+  if (!token) {
+    res.status(401).json({
+      error: "Unauthorized",
+      message: "Missing or malformed Authorization header. Expected 'Bearer <token>'.",
+    });
+    return;
+  }
 
   try {
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -52,3 +60,4 @@ export async function requireAuth(
     });
   }
 }
+

@@ -1,3 +1,4 @@
+import "./env";
 import { PrismaClient } from "@prisma/client";
 
 declare global {
@@ -21,11 +22,16 @@ export interface DatabaseHealthResult {
   error?: string;
 }
 
-export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
+export async function checkDatabaseHealth(timeoutMs = 5000): Promise<DatabaseHealthResult> {
   const start = Date.now();
   try {
-    // Perform raw query to verify actual PostgreSQL connectivity
-    await prisma.$queryRaw`SELECT 1`;
+    // Perform raw query with timeout to verify actual PostgreSQL connectivity without hanging
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Database health check timed out")), timeoutMs)
+      ),
+    ]);
     return {
       status: "connected",
       latencyMs: Date.now() - start,
@@ -37,3 +43,4 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
     };
   }
 }
+

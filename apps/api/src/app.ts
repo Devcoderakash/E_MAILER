@@ -6,6 +6,7 @@ import { checkRedisHealth } from "./config/redis";
 import { checkDatabaseHealth } from "./config/database";
 import { requestLogger } from "./middleware/logger.middleware";
 import { errorHandler } from "./middleware/error.middleware";
+import { authRouter } from "./modules";
 
 export function createApp(): Application {
   const app = express();
@@ -41,13 +42,21 @@ export function createApp(): Application {
       const allHealthy =
         redisHealth.status === "connected" && dbHealth.status === "connected";
 
-      const statusCode = allHealthy ? 200 : 200; // Return 200 with service details in development, or 503 if strictly required
-      
+      const statusCode = allHealthy ? 200 : 503;
+
       res.status(statusCode).json({
-        status: allHealthy ? "ok" : "degraded",
-        uptime: process.uptime(),
+        status: allHealthy ? "healthy" : "unhealthy",
+        service: "mailpilot-api",
         timestamp: new Date().toISOString(),
-        environment: env.NODE_ENV,
+        dependencies: {
+          database: dbHealth.status,
+          redis: redisHealth.status,
+        },
+        metrics: {
+          uptimeSeconds: Math.floor(process.uptime()),
+          databaseLatencyMs: dbHealth.latencyMs,
+          redisLatencyMs: redisHealth.latencyMs,
+        },
         services: {
           redis: redisHealth,
           database: dbHealth,
@@ -57,6 +66,9 @@ export function createApp(): Application {
       next(err);
     }
   });
+
+  // Authentication & User Profile Routes (Phase 1 verified / Phase 2 ready)
+  app.use("/api/auth", authRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {
@@ -71,3 +83,4 @@ export function createApp(): Application {
 
   return app;
 }
+

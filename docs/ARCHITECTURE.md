@@ -77,3 +77,4 @@ mailpilot/
 - `ioredis` establishes a persistent connection with configured reconnection backoff.
 - BullMQ separates queue dispatch (`apps/api/src/queues/`) from isolated worker execution (`apps/api/src/workers/`).
 - Health checks monitor Redis ping latency and report statuses through `/health`.
+
