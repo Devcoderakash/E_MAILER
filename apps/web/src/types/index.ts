@@ -176,6 +176,8 @@ export interface CampaignValidationResponse {
     hasFromName: boolean;
     hasContent: boolean;
     hasAudience: boolean;
+    hasValidProvider?: boolean;
+    hasValidSenderDomain?: boolean;
   };
   audienceSummary: {
     totalEligibleActive: number;

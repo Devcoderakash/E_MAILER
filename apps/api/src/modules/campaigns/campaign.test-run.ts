@@ -2,6 +2,7 @@ import { prisma } from "../../config/database";
 import { redis } from "../../config/redis";
 import { CampaignService } from "./campaign.service";
 import { createCampaignWorker } from "../../workers/campaign.worker";
+import { ResendProvider } from "../../providers/resend.provider";
 import {
   ContactStatus,
   ContactSource,
@@ -14,6 +15,7 @@ async function runCampaignVerification() {
   console.log("🧪 MAILPILOT PHASE 6: CAMPAIGN MANAGER VERIFICATION");
   console.log("=================================================\n");
 
+  ResendProvider.enableTestMode();
   const timestamp = Date.now();
   const testEmail = `campaign-tester-${timestamp}@mailpilot.io`;
   const testSupabaseId = `supa-camp-${timestamp}`;
@@ -178,7 +180,7 @@ async function runCampaignVerification() {
 
   // 6. Test Campaign Sending & BullMQ Asynchronous Dispatch
   console.log("\n6. Triggering campaign dispatch (sendCampaign)...");
-  const queuedCampaign = await CampaignService.sendCampaign(wsA, campaign.id);
+  const queuedCampaign = await CampaignService.sendCampaign(wsA, campaign.id, { isTest: true });
   console.log(`Campaign queued: Status = ${queuedCampaign.status}, Recipients = ${queuedCampaign.recipientCount}`);
 
   if (queuedCampaign.status !== CampaignStatus.QUEUED) {
@@ -231,8 +233,8 @@ async function runCampaignVerification() {
   const stats = await CampaignService.getCampaignStats(wsA, campaign.id);
   console.log("Stats result:", JSON.stringify(stats, null, 2));
 
-  if (stats.sentCount !== 2 || stats.deliveryRate !== 100) {
-    throw new Error(`Expected 2 sent and 100% delivery rate, got ${stats.sentCount} sent / ${stats.deliveryRate}%`);
+  if (stats.sentCount !== 2 || stats.sendSuccessRate !== 100) {
+    throw new Error(`Expected 2 sent and 100% send success rate, got ${stats.sentCount} sent / ${stats.sendSuccessRate}%`);
   }
   console.log("✅ Campaign delivery stats verified!");
 
@@ -276,6 +278,7 @@ async function runCampaignVerification() {
 
   // 12. Cleanup
   console.log("\n12. Cleaning up test data & closing worker...");
+  ResendProvider.disableTestMode();
   await worker.close();
 
   await prisma.campaignRecipient.deleteMany({

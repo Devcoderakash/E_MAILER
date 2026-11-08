@@ -143,10 +143,8 @@ export class AnalyticsService {
       }
     }
 
-    // If delivered events exist, use them; if not yet received from webhooks, fall back to sentRecipients - bounces
-    const delivered = hasProviderEvents
-      ? deliveredEventsCount
-      : Math.max(0, sentRecipientsCount - bounces);
+    // Delivered count strictly represents verified email.delivered webhook events
+    const delivered = deliveredEventsCount;
 
     const uniqueOpens = uniqueOpenedRecipients.size;
     const uniqueClicks = uniqueClickedRecipients.size;
@@ -253,7 +251,7 @@ export class AnalyticsService {
         const uniqueClicks = uniqueClicksResult.length;
 
         const sent = camp.sentCount;
-        const delivered = camp.deliveredCount > 0 ? camp.deliveredCount : sent - camp.bouncedCount;
+        const delivered = camp.deliveredCount;
         const deliveryRate = this.calculateRate(delivered, sent);
         const openRate = this.calculateRate(uniqueOpens, delivered);
         const clickRate = this.calculateRate(uniqueClicks, delivered);
@@ -339,8 +337,7 @@ export class AnalyticsService {
     const uniqueClicks = uniqueClicksResult.length;
 
     const sent = campaign.sentCount;
-    const delivered =
-      campaign.deliveredCount > 0 ? campaign.deliveredCount : sent - campaign.bouncedCount;
+    const delivered = campaign.deliveredCount;
     const deliveryRate = this.calculateRate(delivered, sent);
     const openRate = this.calculateRate(uniqueOpens, delivered);
     const clickRate = this.calculateRate(uniqueClicks, delivered);

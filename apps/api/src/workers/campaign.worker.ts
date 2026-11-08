@@ -220,19 +220,22 @@ export function createCampaignWorker() {
         });
 
         // Dispatch email via Resend
-        const sendResult = await ResendProvider.send({
-          to: recipient.email,
-          fromName: campaign.fromName,
-          fromEmail: campaign.fromEmail,
-          replyTo: campaign.replyTo,
-          subject: personalizedSubject,
-          html: personalizedHtml,
-          preheader: campaign.preheader,
-          tags: [
-            { name: "campaign_id", value: campaign.id },
-            { name: "workspace_id", value: campaign.workspaceId },
-          ],
-        });
+        const sendResult = await ResendProvider.send(
+          {
+            to: recipient.email,
+            fromName: campaign.fromName,
+            fromEmail: campaign.fromEmail,
+            replyTo: campaign.replyTo,
+            subject: personalizedSubject,
+            html: personalizedHtml,
+            preheader: campaign.preheader,
+            tags: [
+              { name: "campaign_id", value: campaign.id },
+              { name: "workspace_id", value: campaign.workspaceId },
+            ],
+          },
+          { isTest: (job.data as CampaignDispatchJobData).isTest }
+        );
 
         if (sendResult.success) {
           await prisma.campaignRecipient.update({
@@ -241,6 +244,7 @@ export function createCampaignWorker() {
               status: CampaignRecipientStatus.SENT,
               sentAt: new Date(),
               providerMessageId: sendResult.messageId || null,
+              errorMessage: null,
             },
           });
 
@@ -251,11 +255,16 @@ export function createCampaignWorker() {
 
           sentCount++;
         } else {
+          const failureReason = sendResult.error || "Delivery failed via email provider";
+          console.error(
+            `[CampaignWorker] Recipient dispatch failed for ${recipient.email}: ${failureReason}`
+          );
+
           await prisma.campaignRecipient.update({
             where: { id: recipient.id },
             data: {
               status: CampaignRecipientStatus.FAILED,
-              errorMessage: sendResult.error || "Delivery failed",
+              errorMessage: failureReason,
             },
           });
 
@@ -280,11 +289,16 @@ export function createCampaignWorker() {
 
       if (remainingRecipients === 0) {
         // Check final stats to determine completed status
-        const totalSent = await prisma.campaignRecipient.count({
-          where: { campaignId, status: CampaignRecipientStatus.SENT },
+        const totalDispatched = await prisma.campaignRecipient.count({
+          where: {
+            campaignId,
+            status: {
+              in: [CampaignRecipientStatus.SENT, CampaignRecipientStatus.DELIVERED],
+            },
+          },
         });
 
-        const finalStatus = totalSent > 0 ? CampaignStatus.SENT : CampaignStatus.FAILED;
+        const finalStatus = totalDispatched > 0 ? CampaignStatus.SENT : CampaignStatus.FAILED;
 
         await prisma.campaign.update({
           where: { id: campaignId },
@@ -295,7 +309,7 @@ export function createCampaignWorker() {
         });
 
         console.log(
-          `[CampaignWorker] Campaign ${campaignId} completely dispatched! Status: ${finalStatus} (Sent: ${totalSent})`
+          `[CampaignWorker] Campaign ${campaignId} completely dispatched! Status: ${finalStatus} (Dispatched: ${totalDispatched})`
         );
       }
 

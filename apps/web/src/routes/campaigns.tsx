@@ -408,21 +408,14 @@ export function CampaignsPage() {
   // Metrics summary
   const totalCampaigns = campaigns.length;
   const totalSentEmails = campaigns.reduce((acc, c) => acc + (c.sentCount || 0), 0);
+  const totalDeliveredEmails = campaigns.reduce((acc, c) => acc + (c.deliveredCount || 0), 0);
   const activeInFlight = campaigns.filter(
     (c) => c.status === "SENDING" || c.status === "QUEUED"
   ).length;
-  const completedCampaigns = campaigns.filter((c) => c.status === "SENT");
   const averageDeliveryRate =
-    completedCampaigns.length > 0
-      ? Math.round(
-          completedCampaigns.reduce(
-            (acc, c) =>
-              acc +
-              (c.recipientCount > 0 ? ((c.sentCount || 0) / c.recipientCount) * 100 : 0),
-            0
-          ) / completedCampaigns.length
-        )
-      : 100;
+    totalSentEmails > 0
+      ? Math.round((totalDeliveredEmails / totalSentEmails) * 100)
+      : 0;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -515,9 +508,11 @@ export function CampaignsPage() {
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-emerald-700">
-            {totalSentEmails.toLocaleString()}
+            {totalDeliveredEmails.toLocaleString()}
           </div>
-          <div className="mt-1 text-xs text-slate-400">Emails dispatched via provider</div>
+          <div className="mt-1 text-xs text-slate-400">
+            Confirmed via webhooks ({totalSentEmails.toLocaleString()} sent)
+          </div>
         </div>
 
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
@@ -545,7 +540,7 @@ export function CampaignsPage() {
           <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
             {averageDeliveryRate}%
           </div>
-          <div className="mt-1 text-xs text-slate-400">Average successful delivery</div>
+          <div className="mt-1 text-xs text-slate-400">Confirmed deliveries / total sent</div>
         </div>
       </div>
 
@@ -680,11 +675,21 @@ export function CampaignsPage() {
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {camp.status === "SENT" ? (
                           <div className="space-y-1">
-                            <div className="text-xs font-medium text-emerald-600">
-                              {camp.sentCount} sent
+                            <div className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                              <span className="text-emerald-600 font-semibold">{camp.deliveredCount || 0} delivered</span>
+                              <span className="text-slate-400 text-[11px]">({camp.sentCount || 0} sent)</span>
                             </div>
                             <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-emerald-500 h-1.5 rounded-full w-full" />
+                              <div
+                                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${
+                                    (camp.sentCount || 0) > 0
+                                      ? Math.min(100, Math.round(((camp.deliveredCount || 0) / (camp.sentCount || 1)) * 100))
+                                      : 0
+                                  }%`,
+                                }}
+                              />
                             </div>
                           </div>
                         ) : camp.status === "SENDING" || camp.status === "QUEUED" ? (
@@ -1243,6 +1248,21 @@ export function CampaignsPage() {
                         )}
                       </div>
 
+                      {/* Error Messages List if invalid */}
+                      {!wizardValidation.canSend && wizardValidation.errors.length > 0 && (
+                        <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3.5 space-y-1.5 text-xs text-rose-800">
+                          <div className="font-semibold text-rose-900 flex items-center gap-1.5">
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                            <span>Action Required Before Sending:</span>
+                          </div>
+                          <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-700">
+                            {wizardValidation.errors.map((err, idx) => (
+                              <li key={idx}>{err}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                       {/* Checklist Breakdown */}
                       <div className="rounded-lg border border-slate-200 p-4 space-y-2 bg-slate-50/50 text-xs">
                         <div className="flex items-center justify-between">
@@ -1266,6 +1286,30 @@ export function CampaignsPage() {
                           ) : (
                             <span className="text-rose-600 flex items-center gap-1 font-medium">
                               <X className="h-3.5 w-3.5" /> Invalid
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600">Sender Domain Authorization</span>
+                          {wizardValidation.checklist.hasValidSenderDomain !== false ? (
+                            <span className="text-emerald-600 flex items-center gap-1 font-medium">
+                              <Check className="h-3.5 w-3.5" /> Verified Domain / Resend Dev
+                            </span>
+                          ) : (
+                            <span className="text-rose-600 flex items-center gap-1 font-medium">
+                              <X className="h-3.5 w-3.5" /> Restricted (Personal Webmail)
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600">Email Delivery Provider</span>
+                          {wizardValidation.checklist.hasValidProvider !== false ? (
+                            <span className="text-emerald-600 flex items-center gap-1 font-medium">
+                              <Check className="h-3.5 w-3.5" /> Configured (Resend)
+                            </span>
+                          ) : (
+                            <span className="text-rose-600 flex items-center gap-1 font-medium">
+                              <X className="h-3.5 w-3.5" /> Missing RESEND_API_KEY (.env)
                             </span>
                           )}
                         </div>

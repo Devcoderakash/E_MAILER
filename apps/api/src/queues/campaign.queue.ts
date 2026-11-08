@@ -9,6 +9,7 @@ export interface CampaignDispatchJobData {
   recipientIds: string[];
   batchIndex: number;
   totalBatches: number;
+  isTest?: boolean;
 }
 
 export interface ScheduledCampaignJobData {

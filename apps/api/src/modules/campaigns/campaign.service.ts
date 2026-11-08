@@ -6,6 +6,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { addCampaignDispatchJob } from "../../queues/campaign.queue";
+import { ResendProvider } from "../../providers/resend.provider";
 
 export interface PaginationParams {
   page?: number;
@@ -61,6 +62,8 @@ export interface CampaignValidationResult {
     hasFromName: boolean;
     hasContent: boolean;
     hasAudience: boolean;
+    hasValidProvider: boolean;
+    hasValidSenderDomain: boolean;
   };
   audienceSummary: {
     totalEligibleActive: number;
@@ -466,7 +469,8 @@ export class CampaignService {
    */
   static async validateCampaign(
     workspaceId: string,
-    campaignId: string
+    campaignId: string,
+    options?: { isTest?: boolean }
   ): Promise<CampaignValidationResult> {
     const campaign = await this.getCampaignById(workspaceId, campaignId);
 
@@ -483,6 +487,14 @@ export class CampaignService {
     );
 
     const hasAudience = audience.stats.totalEligibleActive > 0;
+    const isProviderConfigured =
+      ResendProvider.isConfigured() ||
+      ResendProvider.isTestModeEnabled() ||
+      Boolean(options?.isTest);
+    const isPersonalFrom = ResendProvider.isPersonalWebmail(campaign.fromEmail);
+    const hasValidSenderDomain =
+      hasFromEmail &&
+      (!isPersonalFrom || ResendProvider.isTestModeEnabled() || Boolean(options?.isTest));
 
     const errors: string[] = [];
     if (!hasSubject) errors.push("Campaign subject line is required.");
@@ -492,6 +504,16 @@ export class CampaignService {
     if (!hasAudience) {
       errors.push(
         "No active recipients found matching target audience. Excluded unsubscribed/bounced contacts cannot receive emails."
+      );
+    }
+    if (hasFromEmail && isPersonalFrom && !options?.isTest) {
+      errors.push(
+        `Sender email cannot use a personal webmail address (@${campaign.fromEmail.split("@")[1]}). Resend requires a verified sending domain or 'onboarding@resend.dev' for testing.`
+      );
+    }
+    if (!isProviderConfigured) {
+      errors.push(
+        "Email delivery provider is unconfigured. Set a valid RESEND_API_KEY in .env before dispatching live campaigns."
       );
     }
 
@@ -504,6 +526,8 @@ export class CampaignService {
         hasFromName,
         hasContent,
         hasAudience,
+        hasValidProvider: isProviderConfigured,
+        hasValidSenderDomain,
       },
       audienceSummary: audience.stats,
     };
@@ -512,7 +536,11 @@ export class CampaignService {
   /**
    * Send campaign: Snapshot recipients, transition to QUEUED, and enqueue BullMQ jobs
    */
-  static async sendCampaign(workspaceId: string, campaignId: string) {
+  static async sendCampaign(
+    workspaceId: string,
+    campaignId: string,
+    options?: { isTest?: boolean }
+  ) {
     const campaign = await this.getCampaignById(workspaceId, campaignId);
 
     if (
@@ -526,7 +554,7 @@ export class CampaignService {
     }
 
     // Run validation checks
-    const validation = await this.validateCampaign(workspaceId, campaignId);
+    const validation = await this.validateCampaign(workspaceId, campaignId, options);
     if (!validation.canSend) {
       const err: any = new Error(
         `Campaign validation failed: ${validation.errors.join("; ")}`
@@ -608,6 +636,7 @@ export class CampaignService {
         recipientIds: batchRecipientIds,
         batchIndex,
         totalBatches,
+        isTest: options?.isTest,
       });
     }
 
@@ -716,7 +745,7 @@ export class CampaignService {
   static async getCampaignStats(workspaceId: string, campaignId: string) {
     const campaign = await this.getCampaignById(workspaceId, campaignId);
 
-    const [pending, processing, sent, failed, skipped] = await Promise.all([
+    const [pending, processing, sent, delivered, bounced, failed, skipped] = await Promise.all([
       prisma.campaignRecipient.count({
         where: { campaignId, status: CampaignRecipientStatus.PENDING },
       }),
@@ -727,6 +756,12 @@ export class CampaignService {
         where: { campaignId, status: CampaignRecipientStatus.SENT },
       }),
       prisma.campaignRecipient.count({
+        where: { campaignId, status: CampaignRecipientStatus.DELIVERED },
+      }),
+      prisma.campaignRecipient.count({
+        where: { campaignId, status: CampaignRecipientStatus.BOUNCED },
+      }),
+      prisma.campaignRecipient.count({
         where: { campaignId, status: CampaignRecipientStatus.FAILED },
       }),
       prisma.campaignRecipient.count({
@@ -734,12 +769,17 @@ export class CampaignService {
       }),
     ]);
 
-    const totalProcessed = sent + failed + skipped;
+    const totalAcceptedByProvider = sent + delivered;
+    const totalProcessed = totalAcceptedByProvider + bounced + failed + skipped;
     const totalRecipients = campaign.recipientCount;
     const progressPercent =
       totalRecipients > 0 ? Math.round((totalProcessed / totalRecipients) * 100) : 0;
+    
+    // Confirmed delivery rate: only verified email.delivered events count toward delivered
     const deliveryRate =
-      totalProcessed > 0 ? Math.round((sent / totalProcessed) * 100) : 0;
+      totalAcceptedByProvider > 0 ? Math.round((delivered / totalAcceptedByProvider) * 100) : 0;
+    const sendSuccessRate =
+      totalProcessed > 0 ? Math.round((totalAcceptedByProvider / totalProcessed) * 100) : 0;
 
     let durationSeconds: number | null = null;
     if (campaign.startedAt && campaign.completedAt) {
@@ -753,13 +793,16 @@ export class CampaignService {
       campaignId: campaign.id,
       status: campaign.status,
       recipientCount: campaign.recipientCount,
-      sentCount: sent,
+      sentCount: totalAcceptedByProvider,
+      deliveredCount: delivered,
+      bouncedCount: bounced,
       failedCount: failed,
       pendingCount: pending,
       processingCount: processing,
       skippedCount: skipped,
       progressPercent,
       deliveryRate,
+      sendSuccessRate,
       startedAt: campaign.startedAt,
       completedAt: campaign.completedAt,
       durationSeconds,
