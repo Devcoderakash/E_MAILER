@@ -7,7 +7,7 @@
  * 3. Workflow Activation guards & Pause state transitions
  * 4. Event Trigger Ingestion (contact_subscribed, tag_assigned, contact_added_to_list)
  * 5. Execution Engine Step Traversal (Sequential steps, Condition branching true/false)
- * 6. Action Execution (add_tag, send_email via ResendProvider)
+ * 6. Action Execution (add_tag, send_email via GmailSmtpProvider)
  * 7. Delay Node Execution (PENDING step state, delayed job scheduling)
  * 8. Suppression Check (UNSUBSCRIBED / BOUNCED contacts skip send_email)
  * 9. AI Campaign Copilot Provider Abstraction (Configured vs Unconfigured)
@@ -33,7 +33,7 @@ import {
 import {
   MockAIProvider,
   setTestAIProvider,
-  OpenAIProvider,
+  GeminiProvider,
 } from "../ai/ai.provider";
 import {
   AutomationStatus,
@@ -481,7 +481,7 @@ async function runAutomationAIVerification() {
     // 9. AI Campaign Copilot - Provider Abstraction & Config Check
     console.log("\n9. Testing AI Campaign Copilot Provider Abstraction...");
     // Test unconfigured state with mock empty provider
-    const unconfiguredProvider = new OpenAIProvider("  "); // blank key
+    const unconfiguredProvider = new GeminiProvider("  "); // blank key
     setTestAIProvider(unconfiguredProvider);
     if (AIService.isConfigured()) {
       throw new Error("AIService should report isConfigured = false when API key is empty.");

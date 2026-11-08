@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -17,142 +16,51 @@ import {
   Activity,
   FileText,
   Workflow,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   StatCard,
-  DashboardChart,
   DataTable,
   StatusBadge,
   type Column,
 } from "@/components/common";
-import type { Campaign, ScheduledCampaign, ActivityEvent } from "@/types";
-
-// Sample preview campaigns
-const previewCampaigns: Campaign[] = [
-  {
-    id: "camp-1",
-    name: "Summer Product Launch 2026",
-    subject: "Announcing MailPilot 2.0: Smarter email automation",
-    status: "sent",
-    audience: "All Subscribers",
-    recipientCount: 4850,
-    sentAt: "May 5, 2026, 10:30 AM",
-    createdAt: "2026-05-04T12:00:00Z",
-    stats: {
-      sent: 4850,
-      delivered: 4820,
-      opens: 2480,
-      openRate: 51.4,
-      clicks: 890,
-      clickRate: 18.4,
-    },
-  },
-  {
-    id: "camp-2",
-    name: "Weekly Engineering Digest #42",
-    subject: "Scaling Redis & BullMQ to 10M events",
-    status: "sent",
-    audience: "Tech Segment",
-    recipientCount: 3120,
-    sentAt: "May 3, 2026, 02:00 PM",
-    createdAt: "2026-05-02T10:00:00Z",
-    stats: {
-      sent: 3120,
-      delivered: 3110,
-      opens: 1420,
-      openRate: 45.6,
-      clicks: 410,
-      clickRate: 13.1,
-    },
-  },
-  {
-    id: "camp-3",
-    name: "Customer Onboarding Sequence — Step 1",
-    subject: "Welcome to MailPilot! Here are your API keys",
-    status: "scheduled",
-    audience: "New Signups",
-    recipientCount: 650,
-    scheduledFor: "Tomorrow at 09:00 AM",
-    createdAt: "2026-05-06T15:00:00Z",
-  },
-  {
-    id: "camp-4",
-    name: "Early Access Beta Invitation",
-    subject: "You're invited to test our new AI email composer",
-    status: "draft",
-    audience: "VIP Waitlist",
-    recipientCount: 200,
-    createdAt: "2026-05-07T08:30:00Z",
-  },
-];
-
-const previewScheduled: ScheduledCampaign[] = [
-  {
-    id: "sch-1",
-    name: "Customer Onboarding Sequence — Step 1",
-    scheduledTime: "Tomorrow at 09:00 AM",
-    recipientCount: 650,
-    targetAudience: "New Signups",
-    queueStatus: "queued",
-    channel: "Broadcast",
-  },
-  {
-    id: "sch-2",
-    name: "Global Security Bulletin & SPF/DKIM Update",
-    scheduledTime: "Friday, May 9 at 11:30 AM",
-    recipientCount: 5200,
-    targetAudience: "All Subscribers",
-    queueStatus: "delayed",
-    channel: "Transactional",
-  },
-];
-
-const previewActivities: ActivityEvent[] = [
-  {
-    id: "act-1",
-    type: "campaign_sent",
-    title: "Campaign Broadcast Dispatched",
-    description: "'Summer Product Launch' delivered to 4,820 recipients.",
-    timestamp: "2 hours ago",
-    status: "success",
-  },
-  {
-    id: "act-2",
-    type: "contacts_imported",
-    title: "CSV Audience Ingestion",
-    description: "340 new contacts mapped to 'Tech Segment'.",
-    timestamp: "5 hours ago",
-    status: "info",
-  },
-  {
-    id: "act-3",
-    type: "system_worker",
-    title: "BullMQ Job Engine Synchronized",
-    description: "Redis background queue health checked (latency 2ms).",
-    timestamp: "Yesterday",
-    status: "success",
-  },
-  {
-    id: "act-4",
-    type: "domain_verified",
-    title: "DKIM / SPF Verified",
-    description: "mail.mailpilot.io DNS verification confirmed active.",
-    timestamp: "2 days ago",
-    status: "success",
-  },
-];
+import type { Campaign } from "@/types";
 
 export function DashboardOverviewPage() {
   const navigate = useNavigate();
   const { activeWorkspace } = useAuthStore();
-  const [isDemoData, setIsDemoData] = useState(false);
 
+  // 1. Real Contact Statistics
   const { data: contactStats } = useQuery({
     queryKey: ["contact-stats", activeWorkspace?.id],
     queryFn: () => api.getContactStats(),
     enabled: !!activeWorkspace?.id,
   });
+
+  // 2. Real Analytics Overview
+  const { data: analyticsOverview } = useQuery({
+    queryKey: ["analytics-overview", activeWorkspace?.id],
+    queryFn: () => api.getAnalyticsOverview(),
+    enabled: !!activeWorkspace?.id,
+  });
+
+  // 3. Real Recent Broadcast Campaigns
+  const { data: campaignsData } = useQuery({
+    queryKey: ["recent-campaigns", activeWorkspace?.id],
+    queryFn: () => api.getCampaigns({ page: 1, limit: 5 }),
+    enabled: !!activeWorkspace?.id,
+  });
+
+  // 4. Real Upcoming Scheduled Campaigns
+  const { data: schedulesData } = useQuery({
+    queryKey: ["upcoming-schedules", activeWorkspace?.id],
+    queryFn: () => api.getSchedules(),
+    enabled: !!activeWorkspace?.id,
+  });
+
+  const recentCampaigns = campaignsData?.items || [];
+  const upcomingSchedules = schedulesData?.items || [];
 
   // Table columns definition
   const campaignColumns: Column<Campaign>[] = [
@@ -173,43 +81,47 @@ export function DashboardOverviewPage() {
       header: "Audience",
       cell: (row) => (
         <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-medium">
-          {row.audience}
+          {row.recipientCount} recipients
         </span>
       ),
     },
     {
-      header: "Recipients",
+      header: "Dispatched",
       cell: (row) => (
         <span className="font-mono text-xs text-slate-700">
-          {row.recipientCount.toLocaleString()}
+          {(row.sentCount ?? 0).toLocaleString()}
         </span>
       ),
     },
     {
       header: "Open Rate",
-      cell: (row) =>
-        row.stats?.openRate ? (
-          <span className="font-semibold text-emerald-600">
-            {row.stats.openRate}%
-          </span>
+      cell: (row) => {
+        const rate =
+          (row.sentCount ?? 0) > 0
+            ? (((row.openedCount ?? 0) / (row.sentCount ?? 1)) * 100).toFixed(1)
+            : null;
+        return rate ? (
+          <span className="font-semibold text-emerald-600">{rate}%</span>
         ) : (
           <span className="text-slate-400">—</span>
-        ),
+        );
+      },
     },
     {
       header: "Click Rate",
-      cell: (row) =>
-        row.stats?.clickRate ? (
-          <span className="font-semibold text-indigo-600">
-            {row.stats.clickRate}%
-          </span>
+      cell: (row) => {
+        const rate =
+          (row.sentCount ?? 0) > 0
+            ? (((row.clickedCount ?? 0) / (row.sentCount ?? 1)) * 100).toFixed(1)
+            : null;
+        return rate ? (
+          <span className="font-semibold text-indigo-600">{rate}%</span>
         ) : (
           <span className="text-slate-400">—</span>
-        ),
+        );
+      },
     },
   ];
-
-  const displayedCampaigns = isDemoData ? previewCampaigns : [];
 
   return (
     <div className="space-y-6">
@@ -219,14 +131,14 @@ export function DashboardOverviewPage() {
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200/60 px-3 py-1 text-xs font-semibold text-indigo-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Intelligent Email Marketing Platform
+              Google Ecosystem Email & AI Platform
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               Welcome back to MailPilot
             </h1>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Design high-converting email campaigns, build automated behavioral sequences,
-              and monitor real-time deliverability across all inbox providers.
+              Dispatch targeted campaigns via Gmail SMTP, automate behavioral drip workflows,
+              and sync campaign schedules seamlessly with Google Calendar.
             </p>
           </div>
 
@@ -253,90 +165,87 @@ export function DashboardOverviewPage() {
         <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-50/60 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* KPI Cards Header & Demo Toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
-            Key Performance Metrics
-          </h2>
-          <p className="text-xs text-slate-500">
-            Overview of audience reach and engagement rates.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsDemoData(!isDemoData)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 font-medium transition-colors"
-          title="Toggle honest zero state versus demo preview values"
-        >
-          <span>Metrics mode:</span>
-          <span className="font-semibold text-indigo-600">
-            {isDemoData ? "Demo Preview" : "Zero / Empty State"}
-          </span>
-        </button>
+      {/* KPI Cards Header */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
+          Live Workspace Metrics
+        </h2>
+        <p className="text-xs text-slate-500">
+          Real-time delivery and engagement data powered by Supabase PostgreSQL and Gmail SMTP.
+        </p>
       </div>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Contacts"
-          value={
-            isDemoData
-              ? "12,480"
-              : contactStats
-              ? contactStats.total.toLocaleString()
-              : "0"
-          }
-          change={
-            isDemoData
-              ? "+14.2% vs last month"
-              : contactStats
-              ? `${contactStats.active} active`
-              : undefined
-          }
-          trend={isDemoData || (contactStats?.total ?? 0) > 0 ? "up" : "neutral"}
+          title="Total Audience"
+          value={contactStats ? contactStats.total.toLocaleString() : "0"}
+          change={contactStats ? `${contactStats.active} active subscribers` : undefined}
+          trend={(contactStats?.total ?? 0) > 0 ? "up" : "neutral"}
           description={
-            isDemoData
-              ? "1,240 added this week"
-              : contactStats
+            contactStats
               ? `${contactStats.unsubscribed} unsubscribed, ${contactStats.bounced} bounced`
               : "No contacts in active workspace"
           }
           icon={Users}
-          isDemo={isDemoData}
         />
         <StatCard
-          title="Emails Sent"
-          value={isDemoData ? "84,920" : "0"}
-          change={isDemoData ? "+28.5% volume" : undefined}
-          trend={isDemoData ? "up" : "neutral"}
-          description={isDemoData ? "Across 14 campaigns" : "No campaigns sent yet"}
+          title="Emails Dispatched"
+          value={analyticsOverview ? analyticsOverview.sent.toLocaleString() : "0"}
+          change={
+            analyticsOverview && analyticsOverview.sent > 0
+              ? `${analyticsOverview.deliveryRate}% delivered`
+              : undefined
+          }
+          trend={(analyticsOverview?.sent ?? 0) > 0 ? "up" : "neutral"}
+          description={
+            analyticsOverview && analyticsOverview.sent > 0
+              ? `${analyticsOverview.delivered} confirmed deliveries`
+              : "Awaiting first campaign dispatch"
+          }
           icon={Send}
-          isDemo={isDemoData}
         />
         <StatCard
           title="Average Open Rate"
-          value={isDemoData ? "48.2%" : "0.0%"}
-          change={isDemoData ? "+3.8% vs benchmark" : undefined}
-          trend={isDemoData ? "up" : "neutral"}
-          description={isDemoData ? "Industry avg: 21.5%" : "Awaiting first send"}
+          value={
+            analyticsOverview && analyticsOverview.openRate !== undefined
+              ? `${analyticsOverview.openRate}%`
+              : "0.0%"
+          }
+          change={
+            analyticsOverview && analyticsOverview.uniqueOpens > 0
+              ? `${analyticsOverview.uniqueOpens} unique opens`
+              : undefined
+          }
+          trend={(analyticsOverview?.uniqueOpens ?? 0) > 0 ? "up" : "neutral"}
+          description={
+            analyticsOverview && analyticsOverview.uniqueOpens > 0
+              ? "Tracked across broadcast campaigns"
+              : "Awaiting recipient open events"
+          }
           icon={MailCheck}
-          isDemo={isDemoData}
         />
         <StatCard
           title="Average Click Rate"
-          value={isDemoData ? "14.6%" : "0.0%"}
-          change={isDemoData ? "+1.4% vs benchmark" : undefined}
-          trend={isDemoData ? "up" : "neutral"}
-          description={isDemoData ? "Industry avg: 2.8%" : "Awaiting first send"}
+          value={
+            analyticsOverview && analyticsOverview.clickRate !== undefined
+              ? `${analyticsOverview.clickRate}%`
+              : "0.0%"
+          }
+          change={
+            analyticsOverview && analyticsOverview.uniqueClicks > 0
+              ? `${analyticsOverview.uniqueClicks} unique clicks`
+              : undefined
+          }
+          trend={(analyticsOverview?.uniqueClicks ?? 0) > 0 ? "up" : "neutral"}
+          description={
+            analyticsOverview && analyticsOverview.uniqueClicks > 0
+              ? "Tracked across campaign links"
+              : "Awaiting recipient click events"
+          }
           icon={MousePointerClick}
-          isDemo={isDemoData}
         />
       </div>
-
-      {/* Campaign Performance Chart */}
-      <DashboardChart />
 
       {/* Split Section: Recent Campaigns Table + Right Side (Activity & Upcoming) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -348,7 +257,7 @@ export function DashboardOverviewPage() {
                 Recent Broadcast Campaigns
               </h3>
               <p className="text-xs text-slate-500">
-                Latest email deliveries and their performance.
+                Latest dispatches from your workspace.
               </p>
             </div>
             <Button
@@ -364,7 +273,7 @@ export function DashboardOverviewPage() {
 
           <DataTable<Campaign>
             columns={campaignColumns}
-            data={displayedCampaigns}
+            data={recentCampaigns}
             keyExtractor={(row) => row.id}
             emptyMessage="No broadcast campaigns created yet. Start by crafting your first campaign."
             emptyAction={
@@ -379,7 +288,7 @@ export function DashboardOverviewPage() {
           />
         </div>
 
-        {/* Right 1 Col: Upcoming Scheduled & Activity Feed */}
+        {/* Right 1 Col: Upcoming Scheduled & Architecture Status */}
         <div className="space-y-6">
           {/* Upcoming Scheduled */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-3">
@@ -387,7 +296,7 @@ export function DashboardOverviewPage() {
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-indigo-600" />
                 <h4 className="text-xs font-semibold text-slate-900">
-                  Upcoming Scheduled
+                  Upcoming Schedules
                 </h4>
               </div>
               <Button
@@ -396,72 +305,89 @@ export function DashboardOverviewPage() {
                 onClick={() => navigate("/schedule")}
                 className="text-[11px] h-6 px-2 text-indigo-600"
               >
-                Schedule &rarr;
+                Schedule Center &rarr;
               </Button>
             </div>
 
-            <div className="space-y-2.5">
-              {previewScheduled.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5"
+            {upcomingSchedules.length > 0 ? (
+              <div className="space-y-2.5">
+                {upcomingSchedules.slice(0, 3).map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-semibold text-slate-900 line-clamp-1">
+                        {item.name}
+                      </span>
+                      <StatusBadge status="scheduled" showDot={false} />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-slate-400" />
+                        {item.scheduledAt
+                          ? new Date(item.scheduledAt).toLocaleString()
+                          : "Scheduled"}
+                      </span>
+                      <span className="font-mono text-slate-600 font-medium">
+                        {item.recipientCount} rcpts
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-xs text-slate-400 space-y-2">
+                <Clock className="h-6 w-6 text-slate-300 mx-auto" />
+                <p>No upcoming scheduled campaigns.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/schedule")}
+                  className="text-xs h-7 border-slate-200"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-900 line-clamp-1">
-                      {item.name}
-                    </span>
-                    <StatusBadge status={item.queueStatus} showDot={false} />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-slate-400" />
-                      {item.scheduledTime}
-                    </span>
-                    <span className="font-mono text-slate-600 font-medium">
-                      {item.recipientCount.toLocaleString()} rcpts
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  Schedule a Campaign
+                </Button>
+              </div>
+            )}
           </div>
 
-          {/* Recent Activity Feed */}
+          {/* Google Ecosystem Status Summary */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-indigo-600" />
+                <Activity className="h-4 w-4 text-emerald-600" />
                 <h4 className="text-xs font-semibold text-slate-900">
-                  Recent System Activity
+                  Google Architecture Stack
                 </h4>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {previewActivities.map((act) => (
-                <div key={act.id} className="flex items-start gap-2.5 text-xs">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="font-semibold text-slate-900 truncate">
-                        {act.title}
-                      </p>
-                      <span className="text-[10px] text-slate-400 shrink-0">
-                        {act.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                      {act.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Gmail SMTP Gateway
+                </span>
+                <span className="text-[11px] font-mono text-slate-700 font-medium">smtp.gmail.com:587</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> PostgreSQL + BullMQ
+                </span>
+                <span className="text-[11px] font-mono text-slate-700 font-medium">Delayed Queues</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600" /> Google Gemini AI
+                </span>
+                <span className="text-[11px] font-mono text-slate-700 font-medium">gemini-2.0-flash</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions Bar */}
+      {/* Quick Launch Shortcuts Bar */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
         <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
           Quick Launch Shortcuts
@@ -477,7 +403,7 @@ export function DashboardOverviewPage() {
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-900">Create Campaign</div>
-              <div className="text-[11px] text-slate-500">Broadcast email blast</div>
+              <div className="text-[11px] text-slate-500">Gmail SMTP blast</div>
             </div>
           </button>
 

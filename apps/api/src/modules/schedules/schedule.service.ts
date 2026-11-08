@@ -12,6 +12,7 @@ import {
   parseLocalToUtcDate,
   formatInTimezone,
 } from "../../utils/timezone";
+import { GoogleCalendarService } from "./google-calendar.service";
 
 export interface ScheduleCampaignParams {
   scheduledAt: string;
@@ -121,8 +122,12 @@ export class ScheduleService {
       `[ScheduleService] Scheduled campaign ${campaignId} for ${scheduledUtc.toISOString()} UTC (${timezone}) with job #${job.id} (Delay: ${Math.round(delayMs / 1000)}s)`
     );
 
+    // Synchronize to Google Calendar if workspace has connected integration
+    const calSync = await GoogleCalendarService.syncCampaignScheduled(workspaceId, updated);
+
     return {
       ...updated,
+      googleCalendarEventId: calSync?.eventId || updated.googleCalendarEventId,
       delaySeconds: Math.round(delayMs / 1000),
       formattedScheduledTime: formatInTimezone(scheduledUtc, timezone),
     };
@@ -202,8 +207,12 @@ export class ScheduleService {
       `[ScheduleService] Rescheduled campaign ${campaignId} to ${scheduledUtc.toISOString()} UTC (${timezone}) with job #${job.id}`
     );
 
+    // Synchronize update to Google Calendar
+    const calSync = await GoogleCalendarService.syncCampaignScheduled(workspaceId, updated);
+
     return {
       ...updated,
+      googleCalendarEventId: calSync?.eventId || updated.googleCalendarEventId,
       delaySeconds: Math.round(delayMs / 1000),
       formattedScheduledTime: formatInTimezone(scheduledUtc, timezone),
     };
@@ -243,7 +252,14 @@ export class ScheduleService {
 
     console.log(`[ScheduleService] Unscheduled campaign ${campaignId}. Reverted to DRAFT.`);
 
-    return updated;
+    // Remove event from Google Calendar
+    await GoogleCalendarService.syncCampaignUnscheduled(workspaceId, campaignId);
+
+    return {
+      ...updated,
+      googleCalendarEventId: null,
+      googleCalendarSyncedAt: null,
+    };
   }
 
   /**

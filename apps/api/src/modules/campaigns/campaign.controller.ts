@@ -23,7 +23,6 @@ const createCampaignSchema = z.object({
   targetListIds: z.array(z.string()).optional(),
   targetTagIds: z.array(z.string()).optional(),
   scheduledAt: z.string().datetime().optional().nullable(),
-  provider: z.enum(["RESEND", "BREVO"]).optional(),
 });
 
 const updateCampaignSchema = z.object({
@@ -39,7 +38,6 @@ const updateCampaignSchema = z.object({
   targetTagIds: z.array(z.string()).optional(),
   scheduledAt: z.string().datetime().optional().nullable(),
   status: z.nativeEnum(CampaignStatus).optional(),
-  provider: z.enum(["RESEND", "BREVO"]).optional(),
 });
 
 export class CampaignController {

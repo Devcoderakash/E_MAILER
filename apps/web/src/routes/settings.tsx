@@ -1,135 +1,88 @@
 import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Settings,
-  Globe,
-  Key,
   Users,
-  CheckCircle2,
-  Copy,
-  Plus,
-  RefreshCw,
   Server,
-  Database,
-  Cpu,
   Save,
   Check,
   Loader2,
-  Send,
+  Mail,
+  Calendar,
+  Sparkles,
+  RefreshCw,
   ShieldCheck,
-  AlertTriangle,
-  XCircle,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Send,
+  AlertCircle,
+  Trash2,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatusBadge } from "@/components/common";
 import { useHealth } from "@/hooks/use-health";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 import { api } from "@/lib/api-client";
-import type {
-  DeliveryProvidersResponse,
-  ProviderConnectionTestResponse,
-  SendTestEmailResponse,
-} from "@/types";
 
-type SettingsTab = "general" | "providers" | "domains" | "api" | "team" | "system";
+type SettingsTab = "general" | "google" | "team" | "system";
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const queryClient = useQueryClient();
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialTab = (searchParams.get("tab") as SettingsTab) || "general";
+  
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { data: health, refetch: refetchHealth, isFetching } = useHealth();
   const { user, profile, activeWorkspace, setActiveWorkspace, setProfile } = useAuthStore();
 
-  const [isCopied, setIsCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form states
+  // General profile form states
   const [workspaceName, setWorkspaceName] = useState(activeWorkspace?.name || "My Workspace");
   const [userName, setUserName] = useState(profile?.name || user?.user_metadata?.full_name || "");
-  const [fromName, setFromName] = useState("MailPilot Notifications");
-  const [fromEmail, setFromEmail] = useState(user?.email || "hello@mailpilot.io");
-  const [replyTo, setReplyTo] = useState(user?.email || "support@mailpilot.io");
 
-  // Delivery Providers State
-  const [providersData, setProvidersData] = useState<DeliveryProvidersResponse | null>(null);
-  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
-  const [testingProvider, setTestingProvider] = useState<string | null>(null);
-  const [connectionTestResult, setConnectionTestResult] = useState<ProviderConnectionTestResponse | null>(null);
-  const [settingDefaultProvider, setSettingDefaultProvider] = useState<string | null>(null);
+  // Gmail SMTP form states
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpSenderName, setSmtpSenderName] = useState("MailPilot");
+  const [smtpReplyTo, setSmtpReplyTo] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [smtpFeedback, setSmtpFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Controlled test email state
-  const [testEmailRecipient, setTestEmailRecipient] = useState(user?.email || "lodhiakash286@gmail.com");
-  const [testEmailProvider, setTestEmailProvider] = useState<"BREVO" | "RESEND">("BREVO");
-  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
-  const [testEmailResult, setTestEmailResult] = useState<SendTestEmailResponse | null>(null);
+  // Test email dispatch modal
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testEmailTo, setTestEmailTo] = useState(user?.email || "");
+  const [testEmailFeedback, setTestEmailFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const loadDeliveryProviders = async () => {
-    setIsLoadingProviders(true);
-    try {
-      const data = await api.getDeliveryProviders();
-      setProvidersData(data);
-      if (data.defaultProvider) {
-        setTestEmailProvider(data.defaultProvider);
-      }
-    } catch (err) {
-      console.error("Failed to load delivery providers:", err);
-    } finally {
-      setIsLoadingProviders(false);
-    }
-  };
+  // Queries
+  const { data: smtpSettings, isLoading: isLoadingSmtp } = useQuery({
+    queryKey: ["smtp-settings", activeWorkspace?.id],
+    queryFn: () => api.getSmtpSettings(),
+    enabled: Boolean(activeWorkspace?.id),
+  });
 
+  const { data: calendarStatus, refetch: refetchCalendar, isLoading: isLoadingCalendar } = useQuery({
+    queryKey: ["calendar-status", activeWorkspace?.id],
+    queryFn: () => api.getCalendarStatus(),
+    enabled: Boolean(activeWorkspace?.id),
+  });
+
+  const { data: aiStatus } = useQuery({
+    queryKey: ["ai-status"],
+    queryFn: () => api.getAIStatus(),
+  });
+
+  // Populate SMTP state from fetched settings
   useEffect(() => {
-    if (activeTab === "providers") {
-      loadDeliveryProviders();
+    if (smtpSettings) {
+      if (smtpSettings.user) setSmtpUser(smtpSettings.user);
+      if (smtpSettings.senderName) setSmtpSenderName(smtpSettings.senderName);
+      if (smtpSettings.replyTo) setSmtpReplyTo(smtpSettings.replyTo);
     }
-  }, [activeTab]);
-
-  const handleTestConnection = async (provider: "RESEND" | "BREVO") => {
-    setTestingProvider(provider);
-    setConnectionTestResult(null);
-    try {
-      const res = await api.testProviderConnection(provider);
-      setConnectionTestResult(res);
-    } catch (err: any) {
-      setConnectionTestResult({
-        success: false,
-        ok: false,
-        message: err.message || `Failed to connect to ${provider} API`,
-      });
-    } finally {
-      setTestingProvider(null);
-    }
-  };
-
-  const handleSetDefaultProvider = async (provider: "RESEND" | "BREVO") => {
-    setSettingDefaultProvider(provider);
-    try {
-      await api.setDefaultDeliveryProvider(provider);
-      await loadDeliveryProviders();
-    } catch (err: any) {
-      alert(err.message || "Failed to set default provider");
-    } finally {
-      setSettingDefaultProvider(null);
-    }
-  };
-
-  const handleSendTestEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!testEmailRecipient.trim()) return;
-    setIsSendingTestEmail(true);
-    setTestEmailResult(null);
-    try {
-      const res = await api.sendProviderTestEmail(testEmailProvider, testEmailRecipient.trim());
-      setTestEmailResult(res);
-    } catch (err: any) {
-      setTestEmailResult({
-        success: false,
-        status: "FAILED",
-        message: err.message || "Failed to deliver test email.",
-        error: err.message,
-      });
-    } finally {
-      setIsSendingTestEmail(false);
-    }
-  };
+  }, [smtpSettings]);
 
   useEffect(() => {
     if (activeWorkspace?.name) {
@@ -143,18 +96,32 @@ export function SettingsPage() {
     }
   }, [profile?.name]);
 
-  const handleSave = async (e: React.FormEvent) => {
+  // Handle URL notifications (from Google Calendar callback)
+  useEffect(() => {
+    if (searchParams.get("calendar") === "connected") {
+      setSmtpFeedback({
+        type: "success",
+        message: "Google Calendar connected successfully! Campaign schedules will now synchronize automatically.",
+      });
+      refetchCalendar();
+    } else if (searchParams.get("calendar_error")) {
+      setSmtpFeedback({
+        type: "error",
+        message: `Google Calendar authentication failed: ${searchParams.get("calendar_error")}`,
+      });
+    }
+  }, []);
+
+  const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
     try {
-      // 1. Update user profile name if changed
       if (userName.trim() && userName !== profile?.name) {
         const profileRes = await api.updateProfile({ name: userName.trim() });
         setProfile(profileRes.profile);
       }
 
-      // 2. Update workspace name if changed
       if (
         activeWorkspace &&
         workspaceName.trim() &&
@@ -173,11 +140,102 @@ export function SettingsPage() {
     }
   };
 
-  const copyApiKey = () => {
-    navigator.clipboard.writeText("mp_live_948fbc23019ab76ce0024987efba1923");
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+  // Mutations for SMTP
+  const saveSmtpMutation = useMutation({
+    mutationFn: () =>
+      api.saveSmtpSettings({
+        user: smtpUser.trim(),
+        appPassword: smtpPassword.trim() || undefined,
+        senderName: smtpSenderName.trim(),
+        replyTo: smtpReplyTo.trim() || null,
+      }),
+    onSuccess: () => {
+      setSmtpFeedback({ type: "success", message: "Gmail SMTP settings saved successfully." });
+      setSmtpPassword("");
+      queryClient.invalidateQueries({ queryKey: ["smtp-settings"] });
+    },
+    onError: (err: any) => {
+      setSmtpFeedback({ type: "error", message: err.message || "Failed to save SMTP settings." });
+    },
+  });
+
+  const testSmtpMutation = useMutation({
+    mutationFn: () =>
+      api.testSmtpConnection(
+        smtpUser && smtpPassword
+          ? { user: smtpUser.trim(), appPassword: smtpPassword.trim() }
+          : undefined
+      ),
+    onSuccess: (res) => {
+      if (res.healthy) {
+        setSmtpFeedback({ type: "success", message: "SMTP connection verified successfully! Ready to send." });
+        queryClient.invalidateQueries({ queryKey: ["smtp-settings"] });
+      } else {
+        setSmtpFeedback({ type: "error", message: res.error || "SMTP verification failed. Check credentials." });
+      }
+    },
+    onError: (err: any) => {
+      setSmtpFeedback({ type: "error", message: err.message || "Failed to test connection." });
+    },
+  });
+
+  const sendTestEmailMutation = useMutation({
+    mutationFn: () =>
+      api.sendSmtpTestEmail({
+        to: testEmailTo.trim(),
+        user: smtpUser.trim() || undefined,
+        appPassword: smtpPassword.trim() || undefined,
+        senderName: smtpSenderName.trim() || undefined,
+      }),
+    onSuccess: (res) => {
+      if (res.success) {
+        setTestEmailFeedback({
+          type: "success",
+          message: `Test email sent successfully! Message ID: ${res.messageId || "Accepted"}`,
+        });
+      } else {
+        setTestEmailFeedback({ type: "error", message: res.error || "Email delivery failed." });
+      }
+    },
+    onError: (err: any) => {
+      setTestEmailFeedback({ type: "error", message: err.message || "Failed to send test email." });
+    },
+  });
+
+  const deleteSmtpMutation = useMutation({
+    mutationFn: () => api.deleteSmtpSettings(),
+    onSuccess: () => {
+      setSmtpFeedback({ type: "success", message: "Workspace SMTP configuration reset to system default." });
+      setSmtpPassword("");
+      queryClient.invalidateQueries({ queryKey: ["smtp-settings"] });
+    },
+  });
+
+  // Calendar connect
+  const handleConnectCalendar = async () => {
+    try {
+      const { url } = await api.getCalendarAuthUrl();
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (err: any) {
+      setSmtpFeedback({
+        type: "error",
+        message: err.message || "Could not generate Google Calendar authorization URL.",
+      });
+    }
   };
+
+  const disconnectCalendarMutation = useMutation({
+    mutationFn: () => api.disconnectCalendar(),
+    onSuccess: () => {
+      setSmtpFeedback({ type: "success", message: "Google Calendar disconnected." });
+      queryClient.invalidateQueries({ queryKey: ["calendar-status"] });
+    },
+    onError: (err: any) => {
+      setSmtpFeedback({ type: "error", message: err.message || "Failed to disconnect calendar." });
+    },
+  });
 
   const displayName = profile?.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
   const userInitials = displayName.substring(0, 2).toUpperCase();
@@ -186,16 +244,14 @@ export function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        description="Configure your workspace, sending domains, API keys, and team members."
+        description="Configure your workspace profile, Google ecosystem integrations, team access, and backend diagnostics."
       />
 
       {/* Settings Navigation Tabs */}
       <div className="flex border-b border-slate-200/80 gap-6 text-xs sm:text-sm font-medium overflow-x-auto">
         {[
-          { id: "general", label: "General", icon: Settings },
-          { id: "providers", label: "Email Providers", icon: Send },
-          { id: "domains", label: "Sending Domains", icon: Globe },
-          { id: "api", label: "API Keys & Webhooks", icon: Key },
+          { id: "general", label: "General & Profile", icon: Settings },
+          { id: "google", label: "Google Integrations", icon: ShieldCheck },
           { id: "team", label: "Team Members", icon: Users },
           { id: "system", label: "System Health & Backend", icon: Server },
         ].map((tab) => {
@@ -213,646 +269,532 @@ export function SettingsPage() {
               }`}
             >
               <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
+              {tab.label}
             </button>
           );
         })}
       </div>
 
-      {/* Tab 1: General Settings */}
+      {/* Tab 1: General & Profile */}
       {activeTab === "general" && (
-        <form onSubmit={handleSave} className="space-y-6 max-w-2xl text-xs">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-            <h3 className="font-semibold text-sm text-slate-900 border-b border-slate-100 pb-3">
-              Workspace & Profile Information
-            </h3>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Workspace Name
-              </label>
-              <input
-                type="text"
-                required
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
-              />
-              <p className="text-[11px] text-slate-400 mt-1">
-                Workspace: <span className="font-mono text-slate-600">{activeWorkspace?.slug || "default"}</span> ({activeWorkspace?.role || "Owner"})
-              </p>
+        <form onSubmit={handleSaveGeneral} className="space-y-6 max-w-3xl text-xs">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="font-semibold text-sm text-slate-900">Workspace Details</h3>
+              <p className="text-slate-500 mt-0.5">Identify your team and organization.</p>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Your Display Name
-              </label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Sarah Connor"
-                className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Default Sender Name
-                </label>
+                <label className="block text-slate-700 font-medium mb-1.5">Workspace Name</label>
                 <input
                   type="text"
-                  value={fromName}
-                  onChange={(e) => setFromName(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Default Sender Email
-                </label>
+                <label className="block text-slate-700 font-medium mb-1.5">Workspace Slug</label>
                 <input
-                  type="email"
-                  value={fromEmail}
-                  onChange={(e) => setFromEmail(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
+                  type="text"
+                  value={activeWorkspace?.slug || "workspace"}
+                  disabled
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 font-mono"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Reply-To Email Address
-              </label>
-              <input
-                type="email"
-                value={replyTo}
-                onChange={(e) => setReplyTo(e.target.value)}
-                className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
-              />
+            <div className="border-b border-slate-100 pt-3 pb-3">
+              <h3 className="font-semibold text-sm text-slate-900">Your Personal Profile</h3>
+              <p className="text-slate-500 mt-0.5">Manage how your name appears to team members.</p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs h-9 px-4 font-medium disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-3.5 w-3.5" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-            {isSaved && (
-              <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                <Check className="h-3.5 w-3.5" /> Configuration updated.
-              </span>
-            )}
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+                {userInitials}
+              </div>
+              <div className="flex-1 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Jane Doe"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1.5">Email Address</label>
+                  <input
+                    type="email"
+                    value={user?.email || ""}
+                    disabled
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <Button type="submit" disabled={isSaving} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSaved ? <Check className="h-4 w-4 text-emerald-300" /> : <Save className="h-4 w-4" />}
+                {isSaving ? "Saving..." : isSaved ? "Saved Successfully" : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </form>
       )}
 
-      {/* Tab: Email Providers (Brevo & Resend) */}
-      {activeTab === "providers" && (
+      {/* Tab 2: Google Ecosystem Integrations */}
+      {activeTab === "google" && (
         <div className="space-y-6 max-w-4xl text-xs">
-          {/* Header Card */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-semibold text-sm text-slate-900">
-                  Email Delivery Providers
-                </h3>
-                <p className="text-slate-500 mt-0.5">
-                  Configure delivery engines for campaigns, transactional messages, and visual automations.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadDeliveryProviders}
-                disabled={isLoadingProviders}
-                className="gap-1.5 text-xs border-slate-200"
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${isLoadingProviders ? "animate-spin text-indigo-600" : ""}`}
-                />
-                Refresh
-              </Button>
-            </div>
-
-            {/* Providers Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* BREVO CARD */}
-              {(() => {
-                const brevo = providersData?.providers.find((p) => p.type === "BREVO");
-                const isDefault = brevo?.default || providersData?.defaultProvider === "BREVO";
-                const isConfigured = brevo?.configured ?? false;
-
-                return (
-                  <div
-                    className={`rounded-xl border p-5 space-y-3.5 transition-all ${
-                      isDefault
-                        ? "border-indigo-400 bg-indigo-50/20 shadow-xs ring-1 ring-indigo-200"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-slate-900">Brevo</span>
-                          <span className="text-[10px] text-slate-400 font-mono">v3 Transactional</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Formerly Sendinblue &bull; High deliverability SMTP / API
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {isDefault && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                            <Check className="h-2.5 w-2.5" /> Workspace Default
-                          </span>
-                        )}
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            isConfigured
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}
-                        >
-                          {isConfigured ? "Configured" : "Missing API Key"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Features Badges */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200">
-                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                        Verified Personal Email OK (Gmail)
-                      </span>
-                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                        No Custom DNS Required
-                      </span>
-                    </div>
-
-                    {/* Sender config preview */}
-                    <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] border border-slate-100 space-y-1">
-                      <div className="flex justify-between text-slate-600">
-                        <span className="text-slate-400">Verified Sender:</span>
-                        <span className="font-mono text-slate-800">
-                          {brevo?.senderEmail || "lodhiakash286@gmail.com"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span className="text-slate-400">Sender Display:</span>
-                        <span className="text-slate-800">{brevo?.senderName || "MailPilot"}</span>
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleTestConnection("BREVO")}
-                        disabled={testingProvider === "BREVO"}
-                        className="text-xs h-8 border-slate-200 gap-1.5 flex-1"
-                      >
-                        {testingProvider === "BREVO" ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Testing...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3 w-3" />
-                            Test Connection
-                          </>
-                        )}
-                      </Button>
-
-                      {!isDefault && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => handleSetDefaultProvider("BREVO")}
-                          disabled={settingDefaultProvider === "BREVO" || !isConfigured}
-                          className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
-                        >
-                          {settingDefaultProvider === "BREVO" ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Make Default"
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* RESEND CARD */}
-              {(() => {
-                const resend = providersData?.providers.find((p) => p.type === "RESEND");
-                const isDefault = resend?.default || providersData?.defaultProvider === "RESEND";
-                const isConfigured = resend?.configured ?? false;
-
-                return (
-                  <div
-                    className={`rounded-xl border p-5 space-y-3.5 transition-all ${
-                      isDefault
-                        ? "border-indigo-400 bg-indigo-50/20 shadow-xs ring-1 ring-indigo-200"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-slate-900">Resend</span>
-                          <span className="text-[10px] text-slate-400 font-mono">Modern API</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Developer-first email delivery & analytics
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {isDefault && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                            <Check className="h-2.5 w-2.5" /> Workspace Default
-                          </span>
-                        )}
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            isConfigured
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}
-                        >
-                          {isConfigured ? "Configured" : "Missing API Key"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Features Badges */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
-                        <AlertTriangle className="h-3 w-3 text-amber-600" />
-                        Custom Domain Required
-                      </span>
-                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                        Webmail (@gmail) Blocked
-                      </span>
-                    </div>
-
-                    {/* Sender config preview */}
-                    <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] border border-slate-100 space-y-1">
-                      <div className="flex justify-between text-slate-600">
-                        <span className="text-slate-400">Sandbox Sender:</span>
-                        <span className="font-mono text-slate-800">
-                          {resend?.senderEmail || "onboarding@resend.dev"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span className="text-slate-400">Domain Auth:</span>
-                        <span className="text-slate-800">DKIM & SPF Records</span>
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleTestConnection("RESEND")}
-                        disabled={testingProvider === "RESEND"}
-                        className="text-xs h-8 border-slate-200 gap-1.5 flex-1"
-                      >
-                        {testingProvider === "RESEND" ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Testing...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3 w-3" />
-                            Test Connection
-                          </>
-                        )}
-                      </Button>
-
-                      {!isDefault && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => handleSetDefaultProvider("RESEND")}
-                          disabled={settingDefaultProvider === "RESEND" || !isConfigured}
-                          className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
-                        >
-                          {settingDefaultProvider === "RESEND" ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Make Default"
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Diagnostics Banner if connection test executed */}
-            {connectionTestResult && (
-              <div
-                className={`rounded-lg p-3.5 border flex items-start gap-3 ${
-                  connectionTestResult.success
-                    ? "bg-emerald-50/60 border-emerald-200 text-emerald-900"
-                    : "bg-rose-50/60 border-rose-200 text-rose-900"
-                }`}
-              >
-                {connectionTestResult.success ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+          {/* Banner notification */}
+          {smtpFeedback && (
+            <div
+              className={`p-3.5 rounded-xl border flex items-start justify-between gap-3 ${
+                smtpFeedback.type === "success"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : "bg-red-50 border-red-200 text-red-800"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {smtpFeedback.type === "success" ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                 ) : (
-                  <XCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
                 )}
-                <div className="space-y-1 text-xs">
-                  <div className="font-semibold">
-                    {connectionTestResult.success
-                      ? `API Connection Successful (${connectionTestResult.details?.provider || "Provider"})`
-                      : "API Connection Failed"}
-                  </div>
-                  <div>{connectionTestResult.message}</div>
-                  {connectionTestResult.details && (
-                    <div className="text-[11px] opacity-80 font-mono">
-                      {connectionTestResult.details.accountEmail && (
-                        <span>Account: {connectionTestResult.details.accountEmail} &bull; </span>
-                      )}
-                      {connectionTestResult.details.planType && (
-                        <span>Plan: {connectionTestResult.details.planType} &bull; </span>
-                      )}
-                      {connectionTestResult.details.credits !== undefined && (
-                        <span>Credits: {connectionTestResult.details.credits} &bull; </span>
-                      )}
-                      <span>Tested: {new Date(connectionTestResult.details.testedAt).toLocaleTimeString()}</span>
-                    </div>
-                  )}
+                <span>{smtpFeedback.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSmtpFeedback(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-semibold"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Section 1: Gmail SMTP Gateway */}
+          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold shadow-xs">
+                  <Mail className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-slate-900 flex items-center gap-2">
+                    Gmail SMTP Delivery Gateway
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      smtp.gmail.com:587
+                    </span>
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Broadcast campaigns and automations are sent via Nodemailer with STARTTLS.
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Controlled Single-Recipient Test Send Card */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-semibold text-sm text-slate-900">
-                Send Controlled Test Email
-              </h3>
-              <p className="text-slate-500 mt-0.5">
-                Send a real test email through your delivery provider directly to any inbox to verify delivery and inbox placement.
-              </p>
+              <div>
+                {isLoadingSmtp ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : smtpSettings?.isVerified ? (
+                  <StatusBadge status="active" label="Verified & Operational" />
+                ) : smtpSettings?.configured ? (
+                  <StatusBadge status="warning" label="Configured (Unverified)" />
+                ) : (
+                  <StatusBadge status="inactive" label="Not Configured" />
+                )}
+              </div>
             </div>
 
-            <form onSubmit={handleSendTestEmail} className="space-y-4 max-w-xl">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Select Provider
-                  </label>
-                  <select
-                    value={testEmailProvider}
-                    onChange={(e) => setTestEmailProvider(e.target.value as "BREVO" | "RESEND")}
-                    className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="BREVO">Brevo (Verified Gmail OK)</option>
-                    <option value="RESEND">Resend (Requires Domain)</option>
-                  </select>
-                </div>
+            {/* Quick sending quotas */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Personal Account Quota</span>
+                <span className="font-semibold text-slate-800 text-sm">500 emails / day</span>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Google Workspace Quota</span>
+                <span className="font-semibold text-slate-800 text-sm">2,000 emails / day</span>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80">
+                <span className="text-slate-400 block text-[10px] uppercase font-semibold">Queue Rate Limiter</span>
+                <span className="font-semibold text-slate-800 text-sm">2 msg / sec (Burst Guard)</span>
+              </div>
+            </div>
 
+            {/* Setup Form */}
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Recipient Address
+                  <label className="block text-slate-700 font-medium mb-1.5">
+                    Gmail Address / Google Workspace Email
                   </label>
                   <input
                     type="email"
-                    required
-                    value={testEmailRecipient}
-                    onChange={(e) => setTestEmailRecipient(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full h-9 rounded-lg border border-slate-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    placeholder="you@gmail.com or company@domain.com"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1.5 flex items-center justify-between">
+                    <span>16-Character Google App Password</span>
+                    {smtpSettings?.source === "workspace" && (
+                      <span className="text-slate-400 text-[10px] font-mono">
+                        Saved: {smtpSettings.maskedPassword}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={smtpPassword}
+                      onChange={(e) => setSmtpPassword(e.target.value)}
+                      placeholder={smtpSettings?.configured ? "Enter new password to change..." : "abcd efgh ijkl mnop"}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs pr-9 font-mono focus:outline-indigo-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1.5">
+                    Default Sender Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={smtpSenderName}
+                    onChange={(e) => setSmtpSenderName(e.target.value)}
+                    placeholder="MailPilot Team"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1.5">
+                    Reply-To Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={smtpReplyTo}
+                    onChange={(e) => setSmtpReplyTo(e.target.value)}
+                    placeholder="support@domain.com"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
-                <Button
-                  type="submit"
-                  disabled={isSendingTestEmail || !testEmailRecipient.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs h-9 px-4 font-medium disabled:opacity-50"
-                >
-                  {isSendingTestEmail ? (
-                    <>
+              {/* Step-by-Step Instructions */}
+              <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-3.5 space-y-2">
+                <span className="font-semibold text-indigo-900 block text-[11px]">
+                  How to generate your 16-Character Google App Password:
+                </span>
+                <ol className="list-decimal list-inside text-indigo-800 text-[11px] space-y-1">
+                  <li>Ensure 2-Step Verification is turned ON for your Google account.</li>
+                  <li>
+                    Visit{" "}
+                    <a
+                      href="https://myaccount.google.com/apppasswords"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline font-medium inline-flex items-center gap-0.5"
+                    >
+                      Google App Passwords <ExternalLink className="h-3 w-3 inline" />
+                    </a>
+                  </li>
+                  <li>Create an App Password with the app name <strong>"MailPilot"</strong>.</li>
+                  <li>Copy the 16 characters and paste them into the password field above.</li>
+                </ol>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testSmtpMutation.mutate()}
+                    disabled={testSmtpMutation.isPending}
+                    className="gap-1.5 h-8 text-xs border-slate-300"
+                  >
+                    {testSmtpMutation.isPending ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Dispatching Test Email...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" />
-                      Send Live Test Email
-                    </>
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+                    )}
+                    Test Connection
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTestModal(true)}
+                    className="gap-1.5 h-8 text-xs border-slate-300"
+                  >
+                    <Send className="h-3.5 w-3.5 text-indigo-500" />
+                    Send Test Email
+                  </Button>
+
+                  {smtpSettings?.source === "workspace" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("Reset custom workspace credentials and revert to default?")) {
+                          deleteSmtpMutation.mutate();
+                        }
+                      }}
+                      disabled={deleteSmtpMutation.isPending}
+                      className="gap-1.5 h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Reset to Default
+                    </Button>
                   )}
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => saveSmtpMutation.mutate()}
+                  disabled={saveSmtpMutation.isPending || (!smtpUser && !smtpPassword)}
+                  className="gap-1.5 h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                >
+                  {saveSmtpMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save Configuration
                 </Button>
               </div>
-            </form>
+            </div>
+          </div>
 
-            {/* Test Email Result Box */}
-            {testEmailResult && (
-              <div
-                className={`rounded-lg p-3.5 border flex items-start gap-3 mt-4 ${
-                  testEmailResult.success
-                    ? "bg-emerald-50/60 border-emerald-200 text-emerald-900"
-                    : "bg-rose-50/60 border-rose-200 text-rose-900"
-                }`}
-              >
-                {testEmailResult.success ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-                )}
-                <div className="space-y-1 text-xs">
-                  <div className="font-semibold">
-                    {testEmailResult.success
-                      ? "Test Email Accepted & Dispatched"
-                      : "Test Email Delivery Failed"}
-                  </div>
-                  <div>{testEmailResult.message || testEmailResult.error}</div>
-                  {testEmailResult.providerMessageId && (
-                    <div className="text-[11px] font-mono text-emerald-800">
-                      Provider Message ID: <strong>{testEmailResult.providerMessageId}</strong>
-                    </div>
-                  )}
+          {/* Section 2: Google Calendar Integration */}
+          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shadow-xs">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-slate-900">
+                    Google Calendar Synchronization
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Synchronize planned campaign dispatch dates directly into your Google Calendar.
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Tab 2: Sending Domains */}
-      {activeTab === "domains" && (
-        <div className="space-y-6 max-w-4xl text-xs">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-semibold text-sm text-slate-900">
-                  Verified Sending Domains
-                </h3>
-                <p className="text-slate-500 mt-0.5">
-                  Authorize MailPilot to send emails on behalf of your brand domain.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => alert("Domain verification modal ready for Phase 6 DNS.")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1 text-xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Domain
-              </Button>
-            </div>
-
-            {/* Active Domain Card */}
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Globe className="h-4 w-4 text-emerald-600" />
-                  <span className="font-bold text-sm text-slate-900">
-                    mail.mailpilot.io
-                  </span>
-                  <StatusBadge status="active" label="DNS Verified" />
-                </div>
-                <span className="text-[11px] text-slate-500">
-                  Default Broadcast Domain
-                </span>
-              </div>
-
-              {/* DNS Records Checklist */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
-                <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <div>
-                    <div className="font-semibold text-slate-800">DKIM Record</div>
-                    <div className="text-[10px] text-slate-400">2048-bit RSA Valid</div>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <div>
-                    <div className="font-semibold text-slate-800">SPF Record</div>
-                    <div className="text-[10px] text-slate-400">v=spf1 include:_mailpilot</div>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <div>
-                    <div className="font-semibold text-slate-800">DMARC Policy</div>
-                    <div className="text-[10px] text-slate-400">p=quarantine configured</div>
-                  </div>
-                </div>
+                {isLoadingCalendar ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : calendarStatus?.connected ? (
+                  <StatusBadge status="active" label={`Connected: ${calendarStatus.googleEmail || "Active"}`} />
+                ) : (
+                  <StatusBadge status="warning" label="OAuth Setup Pending" />
+                )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Tab 3: API Keys & Webhooks */}
-      {activeTab === "api" && (
-        <div className="space-y-6 max-w-3xl text-xs">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-            <h3 className="font-semibold text-sm text-slate-900 border-b border-slate-100 pb-3">
-              REST API Authentication
-            </h3>
-            <p className="text-slate-500">
-              Use these credentials to trigger automated transactional sends or sync audiences via API.
+            <p className="text-slate-600 text-xs">
+              When a campaign is scheduled in the Schedule Center, MailPilot automatically creates a Google Calendar event showing recipient estimates, send time, and direct campaign links. When rescheduled or cancelled, your calendar updates in real time.
             </p>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Live Secret Key
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  readOnly
-                  value="mp_live_948fbc23019ab76ce0024987efba1923"
-                  className="w-full h-9 rounded-lg border border-slate-200 bg-slate-50 font-mono px-3 text-xs text-slate-700 select-all"
-                />
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-[11px] text-slate-500">
+                OAuth 2.0 Scope: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px]">https://www.googleapis.com/auth/calendar.events</code>
+              </span>
+
+              {calendarStatus?.connected ? (
                 <Button
+                  type="button"
                   variant="outline"
-                  onClick={copyApiKey}
-                  className="gap-1.5 text-xs h-9 px-3 border-slate-200"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm("Disconnect Google Calendar from this workspace?")) {
+                      disconnectCalendarMutation.mutate();
+                    }
+                  }}
+                  disabled={disconnectCalendarMutation.isPending}
+                  className="gap-1.5 h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                 >
-                  <Copy className="h-3.5 w-3.5" />
-                  {isCopied ? "Copied!" : "Copy"}
+                  {disconnectCalendarMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  Disconnect Calendar
                 </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConnectCalendar}
+                  className="gap-1.5 h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Connect Google Calendar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Section 3: Google Gemini AI Copilot */}
+          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold shadow-xs">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-slate-900">
+                    Google Gemini AI Copilot
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Official Google GenAI SDK (Model: {aiStatus?.model || "gemini-2.0-flash"})
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Never commit your secret key into public client-side repositories.
-              </p>
+
+              <div>
+                <StatusBadge
+                  status={aiStatus?.configured ? "active" : "warning"}
+                  label={aiStatus?.configured ? "Active & Configured" : "Awaiting API Key"}
+                />
+              </div>
+            </div>
+
+            <p className="text-slate-600 text-xs">
+              Powers AI subject line generation, automated copy drafts, deliverability & spam-risk audits, and natural-language workflow generation in the visual builder.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+              <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
+                <span className="font-semibold text-purple-900 block">AI Campaign Assistant</span>
+                <p className="text-purple-800">
+                  Generate email drafts, high-converting subject line variants, and preheaders directly from campaign objectives.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
+                <span className="font-semibold text-purple-900 block">Natural Language Automation Generator</span>
+                <p className="text-purple-800">
+                  Type a prompt like <em>"Send a welcome email, wait 2 days, and if VIP send discount"</em> to assemble visual React Flow graphs instantly.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-[11px] text-slate-500">
+                To configure or update key, set <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px]">GEMINI_API_KEY</code> in environment.
+              </span>
+              <a
+                href="https://aistudio.google.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-600 font-medium underline inline-flex items-center gap-1 text-[11px]"
+              >
+                Google AI Studio <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           </div>
         </div>
       )}
 
-      {/* Tab 4: Team Members */}
+      {/* Tab 3: Team Members */}
       {activeTab === "team" && (
         <div className="space-y-6 max-w-4xl text-xs">
           <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-semibold text-sm text-slate-900">
-                  Workspace Members
-                </h3>
-                <p className="text-slate-500 mt-0.5">
-                  Manage collaborators for workspace: <strong className="text-slate-800">{activeWorkspace?.name}</strong>
-                </p>
+                <h3 className="font-semibold text-sm text-slate-900">Workspace Members</h3>
+                <p className="text-slate-500 mt-0.5">Manage users who have access to this workspace.</p>
               </div>
-              <Button
-                size="sm"
-                onClick={() => alert("Invite teammate dialog ready for workspace collaboration.")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1 text-xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Invite Member
-              </Button>
             </div>
 
             <div className="divide-y divide-slate-100">
               <div className="py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                  <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">
                     {userInitials}
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">{displayName}</div>
-                    <div className="text-slate-500 text-[11px]">{user?.email || profile?.email}</div>
+                    <div className="font-medium text-slate-900">{displayName} (You)</div>
+                    <div className="text-slate-500 text-[11px]">{user?.email}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status="active" label={activeWorkspace?.role === "owner" ? "Workspace Owner" : "Active Member"} />
+                <StatusBadge status="active" label="Owner" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: System Health & Diagnostics */}
+      {activeTab === "system" && (
+        <div className="space-y-6 max-w-4xl text-xs">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-semibold text-sm text-slate-900">Backend Infrastructure Diagnostics</h3>
+                <p className="text-slate-500 mt-0.5">Real-time status of PostgreSQL, Redis queues, and API services.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchHealth()}
+                disabled={isFetching}
+                className="gap-1.5 h-8 text-xs"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800">Supabase PostgreSQL</span>
+                  <StatusBadge
+                    status={health?.dependencies?.database === "connected" ? "active" : "failed"}
+                    label={health?.dependencies?.database || "Unknown"}
+                  />
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Latency: {health?.metrics?.databaseLatencyMs ? `${health.metrics.databaseLatencyMs}ms` : "N/A"}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800">Redis & BullMQ Engine</span>
+                  <StatusBadge
+                    status={health?.dependencies?.redis === "connected" ? "active" : "failed"}
+                    label={health?.dependencies?.redis || "Unknown"}
+                  />
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Latency: {health?.metrics?.redisLatencyMs ? `${health.metrics.redisLatencyMs}ms` : "N/A"}
                 </div>
               </div>
             </div>
@@ -860,96 +802,84 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Tab 5: Real System & Backend Health Integration (Preserving Phase 1) */}
-      {activeTab === "system" && (
-        <div className="space-y-6 max-w-3xl text-xs">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
+      {/* Modal: Send Test Email */}
+      {showTestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-semibold text-sm text-slate-900">
-                  Infrastructure Health Diagnostic
-                </h3>
-                <p className="text-slate-500 mt-0.5">
-                  Real-time connectivity verification with Express API Gateway, Supabase PostgreSQL, and Redis BullMQ.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetchHealth()}
-                className="gap-1.5 text-xs border-slate-200"
+              <h3 className="font-semibold text-sm text-slate-900 flex items-center gap-2">
+                <Send className="h-4 w-4 text-indigo-600" />
+                Send Real Test Email
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTestModal(false);
+                  setTestEmailFeedback(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
               >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-indigo-600" : ""}`}
-                />
-                Refresh
-              </Button>
+                ×
+              </button>
             </div>
 
-            <div className="space-y-3">
-              {/* Express API */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-3">
-                  <Server className="h-4 w-4 text-slate-600" />
-                  <div>
-                    <div className="font-semibold text-slate-900">Express API Gateway</div>
-                    <div className="text-[11px] text-slate-500">Service: mailpilot-api (Port 4000)</div>
-                  </div>
-                </div>
-                <StatusBadge
-                  status={health?.status === "healthy" ? "healthy" : "unhealthy"}
-                  label={health?.status === "healthy" ? "HTTP 200 Healthy" : "Offline"}
-                />
-              </div>
+            <p className="text-slate-600 text-xs">
+              Dispatch a test email via your configured Gmail SMTP connection to verify end-to-end receipt in your inbox.
+            </p>
 
-              {/* Supabase PostgreSQL */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-3">
-                  <Database className="h-4 w-4 text-slate-600" />
-                  <div>
-                    <div className="font-semibold text-slate-900">Supabase PostgreSQL (Prisma)</div>
-                    <div className="text-[11px] text-slate-500">
-                      Supavisor Transaction Pooler (AWS ap-northeast-2)
-                    </div>
-                  </div>
-                </div>
-                <StatusBadge
-                  status={health?.dependencies?.database === "connected" ? "connected" : "disconnected"}
-                  label={
-                    health?.dependencies?.database === "connected"
-                      ? `Connected (${health.metrics?.databaseLatencyMs ?? 4}ms)`
-                      : "Disconnected"
-                  }
-                />
-              </div>
-
-              {/* Redis & BullMQ Engine */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-3">
-                  <Cpu className="h-4 w-4 text-slate-600" />
-                  <div>
-                    <div className="font-semibold text-slate-900">Redis & BullMQ Engine</div>
-                    <div className="text-[11px] text-slate-500">
-                      In-memory event queue & worker scheduler (Port 6379)
-                    </div>
-                  </div>
-                </div>
-                <StatusBadge
-                  status={health?.dependencies?.redis === "connected" ? "connected" : "disconnected"}
-                  label={
-                    health?.dependencies?.redis === "connected"
-                      ? `Connected (${health.metrics?.redisLatencyMs ?? 2}ms)`
-                      : "Disconnected"
-                  }
-                />
-              </div>
-            </div>
-
-            {health?.timestamp && (
-              <div className="pt-2 text-[11px] text-slate-400 font-mono">
-                Last ping: {new Date(health.timestamp).toLocaleString()} &bull; Uptime: {health.metrics?.uptimeSeconds ?? 0}s
+            {testEmailFeedback && (
+              <div
+                className={`p-3 rounded-lg text-xs ${
+                  testEmailFeedback.type === "success"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {testEmailFeedback.message}
               </div>
             )}
+
+            <div>
+              <label className="block text-slate-700 font-medium mb-1.5 text-xs">
+                Recipient Email Address
+              </label>
+              <input
+                type="email"
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowTestModal(false);
+                  setTestEmailFeedback(null);
+                }}
+                className="text-xs h-8"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => sendTestEmailMutation.mutate()}
+                disabled={sendTestEmailMutation.isPending || !testEmailTo}
+                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+              >
+                {sendTestEmailMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                Dispatch Test
+              </Button>
+            </div>
           </div>
         </div>
       )}

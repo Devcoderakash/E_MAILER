@@ -214,15 +214,14 @@ export function AnalyticsPage() {
         }
       />
 
-      {/* Provider Webhook Sync Status Banner */}
-      {overview && !overview.hasProviderEvents && overview.sent > 0 && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 flex items-start gap-3">
-          <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+      {/* Gmail SMTP Dispatch Status Banner */}
+      {overview && overview.sent > 0 && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 text-xs text-indigo-900 flex items-start gap-3">
+          <Info className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-semibold">Awaiting Live Provider Webhook Events</p>
-            <p className="text-blue-800 text-[11px]">
-              Campaigns have been dispatched through Resend. Open rates and delivery confirmation will update automatically as webhook events are received at{" "}
-              <code className="bg-blue-100 text-blue-900 px-1 py-0.5 rounded font-mono">/api/webhooks/resend</code>.
+            <p className="font-semibold">Gmail SMTP Email Dispatch Status</p>
+            <p className="text-indigo-800 text-[11px]">
+              Campaigns are submitted directly via Google SMTP (<code className="bg-indigo-100 text-indigo-900 px-1 py-0.5 rounded font-mono">smtp.gmail.com:587</code>). Dispatch metrics reflect confirmed SMTP server handshakes and tracked recipient engagement.
             </p>
           </div>
         </div>

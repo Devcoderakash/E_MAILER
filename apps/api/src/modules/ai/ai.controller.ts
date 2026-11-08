@@ -1,11 +1,14 @@
 import { Request, Response, NextFunction } from "express";
 import { CampaignService } from "../campaigns/campaign.service";
+import { env } from "../../config/env";
 import {
   AIService,
   generateSubjectLinesSchema,
   generateEmailDraftSchema,
   generatePreheaderSchema,
   improveCampaignSchema,
+  generateWorkflowSchema,
+  chatSchema,
 } from "./ai.service";
 
 export class AIController {
@@ -21,12 +24,16 @@ export class AIController {
 
   /**
    * GET /api/ai/status
-   * Check if AI provider is configured
+   * Check if Google Gemini AI is configured
    */
   static async getStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const isConfigured = AIService.isConfigured();
-      res.status(200).json({ configured: isConfigured });
+      res.status(200).json({
+        configured: isConfigured,
+        provider: "Google Gemini",
+        model: env.GEMINI_MODEL,
+      });
     } catch (err) {
       next(err);
     }
@@ -69,7 +76,7 @@ export class AIController {
   }
 
   /**
-   * POST /api/ai/generate-preheader
+   * POST /api/ai/preheaders
    */
   static async generatePreheader(
     req: Request,
@@ -87,7 +94,7 @@ export class AIController {
   }
 
   /**
-   * POST /api/ai/improve-campaign
+   * POST /api/ai/improve
    */
   static async improveCampaign(
     req: Request,
@@ -98,6 +105,42 @@ export class AIController {
       const { workspaceId } = await AIController.getWorkspace(req);
       const validated = improveCampaignSchema.parse(req.body);
       const result = await AIService.improveCampaign(workspaceId, validated);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/ai/generate-workflow
+   */
+  static async generateWorkflow(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { workspaceId } = await AIController.getWorkspace(req);
+      const validated = generateWorkflowSchema.parse(req.body);
+      const result = await AIService.generateWorkflow(workspaceId, validated);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/ai/chat
+   */
+  static async chat(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { workspaceId } = await AIController.getWorkspace(req);
+      const validated = chatSchema.parse(req.body);
+      const result = await AIService.chatCopilot(workspaceId, validated);
       res.status(200).json(result);
     } catch (err) {
       next(err);

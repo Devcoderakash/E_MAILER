@@ -31,9 +31,10 @@ import type {
   AIDraftResponse,
   AIPreheadersResponse,
   AIImproveResponse,
-  DeliveryProvidersResponse,
-  ProviderConnectionTestResponse,
-  SendTestEmailResponse,
+  SmtpSettingsResponse,
+  GoogleCalendarStatusResponse,
+  AIWorkflowResponse,
+  AIChatResponse,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -479,7 +480,6 @@ export const api = {
     targetListIds?: string[];
     targetTagIds?: string[];
     scheduledAt?: string | null;
-    provider?: string;
   }): Promise<Campaign> {
     return apiRequest<Campaign>("/api/campaigns", {
       method: "POST",
@@ -502,7 +502,6 @@ export const api = {
       targetTagIds: string[];
       scheduledAt: string | null;
       status: string;
-      provider: string;
     }>
   ): Promise<Campaign> {
     return apiRequest<Campaign>(`/api/campaigns/${id}`, {
@@ -878,45 +877,96 @@ export const api = {
     });
   },
 
+  async generateWorkflow(data: {
+    prompt: string;
+  }): Promise<AIWorkflowResponse> {
+    return apiRequest("/api/ai/generate-workflow", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async chatCopilot(data: {
+    messages: Array<{ role: "user" | "model" | "assistant"; content: string }>;
+    context?: { campaignGoal?: string; audience?: string };
+  }): Promise<AIChatResponse> {
+    return apiRequest("/api/ai/chat", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   // ==========================================
-  // Delivery Provider Settings
+  // Workspace Gmail SMTP Settings
   // ==========================================
-  async getDeliveryProviders(): Promise<DeliveryProvidersResponse> {
-    return apiRequest<DeliveryProvidersResponse>("/api/settings/providers");
+  async getSmtpSettings(): Promise<SmtpSettingsResponse> {
+    return apiRequest("/api/settings/smtp");
   },
 
-  async testProviderConnection(
-    provider: "RESEND" | "BREVO" | string
-  ): Promise<ProviderConnectionTestResponse> {
-    return apiRequest<ProviderConnectionTestResponse>(
-      `/api/settings/providers/${provider.toLowerCase()}/test-connection`,
-      { method: "POST" }
-    );
+  async saveSmtpSettings(data: {
+    user: string;
+    appPassword?: string;
+    senderName?: string;
+    replyTo?: string | null;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+  }): Promise<{ success: boolean; user: string; senderName: string; isVerified: boolean }> {
+    return apiRequest("/api/settings/smtp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  async sendProviderTestEmail(
-    provider: "RESEND" | "BREVO" | string,
-    to: string
-  ): Promise<SendTestEmailResponse> {
-    return apiRequest<SendTestEmailResponse>(
-      `/api/settings/providers/${provider.toLowerCase()}/send-test-email`,
-      {
-        method: "POST",
-        body: JSON.stringify({ to }),
-      }
-    );
+  async testSmtpConnection(data?: {
+    user?: string;
+    appPassword?: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+  }): Promise<{ healthy: boolean; error?: string }> {
+    return apiRequest("/api/settings/smtp/test", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
   },
 
-  async setDefaultDeliveryProvider(
-    provider: "RESEND" | "BREVO"
-  ): Promise<{ defaultEmailProvider: string }> {
-    return apiRequest<{ defaultEmailProvider: string }>(
-      "/api/settings/providers/default",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ provider }),
-      }
-    );
+  async sendSmtpTestEmail(data: {
+    to: string;
+    user?: string;
+    appPassword?: string;
+    senderName?: string;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    return apiRequest("/api/settings/smtp/send-test", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteSmtpSettings(): Promise<{ success: boolean; message: string }> {
+    return apiRequest("/api/settings/smtp", {
+      method: "DELETE",
+    });
+  },
+
+  // ==========================================
+  // Google Calendar Integration
+  // ==========================================
+  async getCalendarStatus(): Promise<GoogleCalendarStatusResponse> {
+    return apiRequest("/api/auth/google/calendar/status");
+  },
+
+  async getCalendarAuthUrl(): Promise<{ url: string }> {
+    return apiRequest("/api/auth/google/calendar", {
+      headers: { Accept: "application/json" },
+    });
+  },
+
+  async disconnectCalendar(): Promise<{ success: boolean; message: string }> {
+    return apiRequest("/api/auth/google/calendar", {
+      method: "DELETE",
+    });
   },
 };
+
 

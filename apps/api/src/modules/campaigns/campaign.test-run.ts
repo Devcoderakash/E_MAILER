@@ -2,7 +2,7 @@ import { prisma } from "../../config/database";
 import { redis } from "../../config/redis";
 import { CampaignService } from "./campaign.service";
 import { createCampaignWorker } from "../../workers/campaign.worker";
-import { ResendProvider } from "../../providers/resend.provider";
+import { GmailSmtpProvider } from "../../providers";
 import {
   ContactStatus,
   ContactSource,
@@ -15,7 +15,7 @@ async function runCampaignVerification() {
   console.log("🧪 MAILPILOT PHASE 6: CAMPAIGN MANAGER VERIFICATION");
   console.log("=================================================\n");
 
-  ResendProvider.enableTestMode();
+  GmailSmtpProvider.enableTestMode();
   const timestamp = Date.now();
   const testEmail = `campaign-tester-${timestamp}@mailpilot.io`;
   const testSupabaseId = `supa-camp-${timestamp}`;
@@ -278,7 +278,7 @@ async function runCampaignVerification() {
 
   // 12. Cleanup
   console.log("\n12. Cleaning up test data & closing worker...");
-  ResendProvider.disableTestMode();
+  GmailSmtpProvider.disableTestMode();
   await worker.close();
 
   await prisma.campaignRecipient.deleteMany({

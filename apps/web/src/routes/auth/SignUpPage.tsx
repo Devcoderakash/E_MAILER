@@ -88,7 +88,7 @@ export function SignUpPage() {
                 </Button>
               </Link>
               <p className="text-[11px] text-slate-400">
-                Didn't receive the email? Check your spam folder or try signing in to resend.
+                Didn't receive the email? Check your spam folder or try signing in again to request a new link.
               </p>
             </div>
           </div>

@@ -3,8 +3,5 @@ import { WebhookController } from "./webhook.controller";
 
 export const webhookRouter: Router = Router();
 
-// Public webhook receiver for Resend
-webhookRouter.post("/resend", WebhookController.handleResendWebhook);
-
-// Public webhook receiver for Brevo
-webhookRouter.post("/brevo", WebhookController.handleBrevoWebhook);
+// Webhook status endpoint
+webhookRouter.get("/status", WebhookController.getStatus);

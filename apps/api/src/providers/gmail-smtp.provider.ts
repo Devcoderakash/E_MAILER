@@ -1,0 +1,411 @@
+import nodemailer, { Transporter } from "nodemailer";
+import { env } from "../config/env";
+import { prisma } from "../config/database";
+import { decryptCredential } from "../utils/crypto.util";
+
+export interface SendEmailOptions {
+  to: string;
+  fromName: string;
+  fromEmail: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string | null;
+  preheader?: string | null;
+  tags?: { name: string; value: string }[];
+  workspaceId?: string;
+  unsubscribeUrl?: string;
+}
+
+export interface SendEmailResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  errorCode?: string;
+  simulated: boolean;
+  accepted?: boolean;
+}
+
+export interface CustomSmtpCredentials {
+  user: string;
+  pass: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  senderName?: string;
+}
+
+export class GmailSmtpProvider {
+  private static defaultTransporter: Transporter | null = null;
+  private static testMode = false;
+  private static testMockHandler?: (options: SendEmailOptions) => Promise<SendEmailResult>;
+
+  /**
+   * Enable test mode for automated test suites.
+   */
+  public static enableTestMode(handler?: (options: SendEmailOptions) => Promise<SendEmailResult>): void {
+    this.testMode = true;
+    this.testMockHandler = handler;
+  }
+
+  /**
+   * Disable test mode and return to live SMTP behavior.
+   */
+  public static disableTestMode(): void {
+    this.testMode = false;
+    this.testMockHandler = undefined;
+  }
+
+  /**
+   * Check if test mode is active.
+   */
+  public static isTestModeEnabled(): boolean {
+    return this.testMode || process.env.GMAIL_SMTP_SIMULATION_MODE === "true";
+  }
+
+  /**
+   * Check if system default Gmail SMTP credentials are configured and valid.
+   */
+  public static isConfigured(): boolean {
+    const user = env.GMAIL_SMTP_USER;
+    const pass = env.GMAIL_SMTP_APP_PASSWORD;
+
+    if (!user || user.trim() === "") return false;
+    if (!pass || pass.trim() === "") return false;
+
+    const trimmedPass = pass.trim();
+    if (
+      trimmedPass.includes("placeholder") ||
+      trimmedPass.includes("your_16_char") ||
+      trimmedPass === "your_app_password"
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Clean 16-character App Password (remove spaces if user copied "abcd efgh ijkl mnop")
+   */
+  public static normalizeAppPassword(raw: string): string {
+    return raw.replace(/\s+/g, "");
+  }
+
+  /**
+   * Create an ad-hoc Nodemailer transporter for custom credentials
+   */
+  public static createTransporter(credentials: CustomSmtpCredentials): Transporter {
+    const cleanPass = this.normalizeAppPassword(credentials.pass);
+    return nodemailer.createTransport({
+      host: credentials.host || env.GMAIL_SMTP_HOST,
+      port: credentials.port || env.GMAIL_SMTP_PORT,
+      secure: credentials.secure ?? env.GMAIL_SMTP_SECURE,
+      auth: {
+        user: credentials.user,
+        pass: cleanPass,
+      },
+      tls: {
+        rejectUnauthorized: true,
+      },
+    });
+  }
+
+  /**
+   * Get transporter for a specific workspace or fallback to default
+   */
+  public static async getTransporterForWorkspace(workspaceId?: string): Promise<{
+    transporter: Transporter;
+    user: string;
+    senderName: string;
+    replyTo?: string | null;
+  } | null> {
+    if (workspaceId) {
+      try {
+        const workspaceConfig = await prisma.workspaceSmtpConfig.findUnique({
+          where: { workspaceId },
+        });
+
+        if (workspaceConfig && workspaceConfig.user && workspaceConfig.encryptedPassword) {
+          const decryptedPass = decryptCredential(workspaceConfig.encryptedPassword);
+          const customTransporter = this.createTransporter({
+            user: workspaceConfig.user,
+            pass: decryptedPass,
+            host: workspaceConfig.host,
+            port: workspaceConfig.port,
+            secure: workspaceConfig.secure,
+            senderName: workspaceConfig.senderName,
+          });
+
+          return {
+            transporter: customTransporter,
+            user: workspaceConfig.user,
+            senderName: workspaceConfig.senderName || env.GMAIL_SENDER_NAME || "MailPilot",
+            replyTo: workspaceConfig.replyTo,
+          };
+        }
+      } catch (err) {
+        console.warn(`[GmailSmtpProvider] Could not load workspace SMTP config for ${workspaceId}, falling back to env.`);
+      }
+    }
+
+    // Fallback to environment credentials
+    if (!this.isConfigured()) return null;
+
+    if (!this.defaultTransporter) {
+      this.defaultTransporter = this.createTransporter({
+        user: env.GMAIL_SMTP_USER!,
+        pass: env.GMAIL_SMTP_APP_PASSWORD!,
+        host: env.GMAIL_SMTP_HOST,
+        port: env.GMAIL_SMTP_PORT,
+        secure: env.GMAIL_SMTP_SECURE,
+        senderName: env.GMAIL_SENDER_NAME,
+      });
+    }
+
+    return {
+      transporter: this.defaultTransporter,
+      user: env.GMAIL_SMTP_USER!,
+      senderName: env.GMAIL_SENDER_NAME || "MailPilot",
+    };
+  }
+
+  /**
+   * Verify an SMTP connection using either specific credentials, workspace config, or env fallback.
+   */
+  public static async verifyConnection(
+    credentials?: CustomSmtpCredentials,
+    workspaceId?: string
+  ): Promise<{ healthy: boolean; error?: string }> {
+    try {
+      let transporter: Transporter;
+
+      if (credentials) {
+        if (!credentials.user || !credentials.pass) {
+          return { healthy: false, error: "Gmail address and App Password are required." };
+        }
+        transporter = this.createTransporter(credentials);
+      } else {
+        const resolved = await this.getTransporterForWorkspace(workspaceId);
+        if (!resolved) {
+          return {
+            healthy: false,
+            error: "Gmail SMTP is unconfigured. Set credentials in Settings or configure GMAIL_SMTP_* in .env.",
+          };
+        }
+        transporter = resolved.transporter;
+      }
+
+      await transporter.verify();
+      return { healthy: true };
+    } catch (err: any) {
+      const sanitized = this.classifySmtpError(err);
+      return { healthy: false, error: sanitized.message };
+    }
+  }
+
+  /**
+   * Strip HTML tags to produce a clean plain-text fallback
+   */
+  public static stripHtml(html: string): string {
+    if (!html) return "";
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<br\s*[\/]?>/gi, "\n")
+      .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n/g, "\n\n")
+      .trim();
+  }
+
+  /**
+   * Dispatches email via Gmail SMTP (Nodemailer)
+   */
+  public static async send(
+    options: SendEmailOptions,
+    meta?: { isTest?: boolean }
+  ): Promise<SendEmailResult> {
+    // 1. Check for test mode simulation
+    if (this.isTestModeEnabled() || meta?.isTest) {
+      if (this.testMockHandler) {
+        return await this.testMockHandler(options);
+      }
+      return {
+        success: true,
+        messageId: `gmail_test_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        simulated: true,
+        accepted: true,
+      };
+    }
+
+    // 2. Resolve transporter (workspace config or environment fallback)
+    const resolved = await this.getTransporterForWorkspace(options.workspaceId);
+    if (!resolved) {
+      return {
+        success: false,
+        error:
+          "Gmail SMTP delivery provider is unconfigured. Set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD in .env or configure in Settings.",
+        errorCode: "PROVIDER_UNCONFIGURED",
+        simulated: false,
+      };
+    }
+
+    const { transporter, user: authenticatedUser, senderName: defaultSenderName } = resolved;
+
+    // Construct From header with sender name and authenticated Gmail address
+    const fromAddress = authenticatedUser;
+    const fromDisplayName = options.fromName || defaultSenderName || "MailPilot";
+    const formattedFrom = `"${fromDisplayName}" <${fromAddress}>`;
+
+    // Add preheader if provided
+    let finalHtml = options.html;
+    if (options.preheader && options.preheader.trim()) {
+      const preheaderHtml = `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${options.preheader}</div>`;
+      finalHtml = preheaderHtml + finalHtml;
+    }
+
+    const plainText = options.text || this.stripHtml(options.html);
+
+    const headers: Record<string, string> = {
+      "X-Mailer": "MailPilot-Google-Engine",
+      ...(options.tags?.reduce((acc, tag) => {
+        acc[`X-${tag.name}`] = tag.value;
+        return acc;
+      }, {} as Record<string, string>) || {}),
+    };
+
+    if (options.unsubscribeUrl) {
+      headers["List-Unsubscribe"] = `<${options.unsubscribeUrl}>`;
+      headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+    }
+
+    try {
+      const info = await transporter.sendMail({
+        from: formattedFrom,
+        to: options.to,
+        subject: options.subject,
+        html: finalHtml,
+        text: plainText,
+        replyTo: options.replyTo || undefined,
+        headers,
+      });
+
+      // Nodemailer returns messageId upon SMTP server acceptance
+      const messageId = info.messageId || `<${Date.now()}@gmail.com>`;
+
+      return {
+        success: true,
+        messageId,
+        simulated: false,
+        accepted: true,
+      };
+    } catch (err: any) {
+      const sanitized = this.classifySmtpError(err);
+      return {
+        success: false,
+        error: sanitized.message,
+        errorCode: sanitized.code,
+        simulated: false,
+      };
+    }
+  }
+
+  /**
+   * Classify Nodemailer / Google SMTP error response codes safely without leaking credentials
+   */
+  public static classifySmtpError(err: any): { code: string; message: string } {
+    const rawMessage = String(err?.message || "");
+    const responseCode = err?.responseCode || err?.code;
+
+    // 535: Authentication Failed (Invalid Google App Password or 2FA required)
+    if (
+      responseCode === 535 ||
+      rawMessage.includes("535") ||
+      rawMessage.includes("BadCredentials") ||
+      rawMessage.includes("Username and Password not accepted")
+    ) {
+      return {
+        code: "AUTH_FAILED",
+        message:
+          "Gmail SMTP authentication failed. Please verify your 16-character Google App Password (2-Step Verification must be enabled on your Google Account).",
+      };
+    }
+
+    // 550 5.4.5: Daily sending quota exceeded
+    if (
+      responseCode === 550 ||
+      rawMessage.includes("5.4.5") ||
+      rawMessage.toLowerCase().includes("daily sending quota exceeded") ||
+      rawMessage.toLowerCase().includes("user-sending quota")
+    ) {
+      return {
+        code: "QUOTA_EXCEEDED",
+        message:
+          "Google daily sending quota exceeded (500 emails/day for personal Gmail, 2,000/day for Google Workspace).",
+      };
+    }
+
+    // Connection errors
+    if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ESOCKET") {
+      return {
+        code: "CONNECTION_FAILED",
+        message: `Failed to connect to Google SMTP host (${env.GMAIL_SMTP_HOST}:${env.GMAIL_SMTP_PORT}). Check network connectivity.`,
+      };
+    }
+
+    // Recipient address rejected (550 / 553 / 501)
+    if (responseCode === 550 || responseCode === 553 || responseCode === 501) {
+      return {
+        code: "RECIPIENT_REJECTED",
+        message: `Recipient address was rejected by SMTP server: ${rawMessage.substring(0, 120)}`,
+      };
+    }
+
+    return {
+      code: "SMTP_ERROR",
+      message: this.sanitizeErrorMessage(err),
+    };
+  }
+
+  /**
+   * Sanitize error message to ensure no passwords or sensitive tokens are logged
+   */
+  public static sanitizeErrorMessage(err: any): string {
+    let msg = String(err?.message || "Unknown SMTP error occurred");
+    if (env.GMAIL_SMTP_APP_PASSWORD) {
+      msg = msg.replace(new RegExp(env.GMAIL_SMTP_APP_PASSWORD, "g"), "[REDACTED]");
+    }
+    return msg.substring(0, 250);
+  }
+
+  /**
+   * Interpolate merge tags (e.g. {{firstName}}, {{email}}) in email subjects or HTML bodies
+   */
+  public static interpolateMergeTags(
+    template: string,
+    tags: {
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
+      company?: string | null;
+      subject?: string | null;
+      [key: string]: string | null | undefined;
+    }
+  ): string {
+    if (!template) return "";
+
+    return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, tagKey) => {
+      const val = tags[tagKey];
+      if (val !== undefined && val !== null) {
+        return String(val);
+      }
+      return "";
+    });
+  }
+}

@@ -37,6 +37,8 @@ import {
   AlertCircle,
   Maximize2,
   Minimize2,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,6 +132,48 @@ export function AutomationBuilderPage() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+
+  // AI Workflow Generator State
+  const [isAiWorkflowModalOpen, setIsAiWorkflowModalOpen] = useState(false);
+  const [aiWorkflowPrompt, setAiWorkflowPrompt] = useState("");
+  const [isGeneratingAiWorkflow, setIsGeneratingAiWorkflow] = useState(false);
+  const [aiWorkflowError, setAiWorkflowError] = useState<string | null>(null);
+
+  const handleGenerateWorkflowWithAi = async () => {
+    if (!aiWorkflowPrompt.trim()) return;
+    setIsGeneratingAiWorkflow(true);
+    setAiWorkflowError(null);
+    try {
+      const res = await api.generateWorkflow({ prompt: aiWorkflowPrompt.trim() });
+      if (res?.workflow?.nodes) {
+        const generatedNodes = res.workflow.nodes.map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          data: { ...n.data, type: n.type },
+          position: n.position || { x: 250, y: 100 },
+        }));
+        const generatedEdges = (res.workflow.edges || []).map((e: any) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle || null,
+          targetHandle: e.targetHandle || null,
+          label: e.label || (e.sourceHandle === "true" ? "Yes" : e.sourceHandle === "false" ? "No" : undefined),
+        }));
+
+        setNodes(generatedNodes);
+        setEdges(generatedEdges);
+        setSelectedNode(null);
+        setIsAiWorkflowModalOpen(false);
+        setAiWorkflowPrompt("");
+        showToast("AI workflow generated successfully! Previewing on canvas.");
+      }
+    } catch (err: any) {
+      setAiWorkflowError(err.message || "Failed to generate workflow with AI.");
+    } finally {
+      setIsGeneratingAiWorkflow(false);
+    }
+  };
 
   // Open Editor with loaded automation
   const handleOpenEditor = async (auto: Automation) => {
@@ -732,6 +776,16 @@ export function AutomationBuilderPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAiWorkflowModalOpen(true)}
+                  className="h-8 text-xs gap-1.5 border-purple-200 text-purple-700 bg-purple-50/60 hover:bg-purple-100"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                  Generate with AI
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -1365,6 +1419,110 @@ export function AutomationBuilderPage() {
               >
                 <Plus className="h-3.5 w-3.5" />
                 Launch Visual Studio
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Workflow Generation Modal */}
+      {isAiWorkflowModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-slate-900">
+                    Generate Workflow with Google Gemini
+                  </h3>
+                  <p className="text-slate-500 text-[11px]">
+                    Describe your marketing funnel in plain English.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAiWorkflowModalOpen(false);
+                  setAiWorkflowError(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {aiWorkflowError && (
+              <div className="p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-xs">
+                {aiWorkflowError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Funnel Description / Instructions
+              </label>
+              <textarea
+                rows={4}
+                value={aiWorkflowPrompt}
+                onChange={(e) => setAiWorkflowPrompt(e.target.value)}
+                placeholder="e.g. When a new contact subscribes, wait 2 days, then send a welcome discount email with code SAVE20. If they have the VIP tag, also send an exclusive invitation."
+                className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:outline-indigo-600 resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-medium text-slate-500">Quick Prompt Templates:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Welcome new subscriber, wait 2 days, send 20% coupon",
+                  "Send onboarding email, wait 1 day, follow up if inactive",
+                  "Tag VIP subscribers and send personal calendar invite",
+                ].map((tmpl) => (
+                  <button
+                    key={tmpl}
+                    type="button"
+                    onClick={() => setAiWorkflowPrompt(tmpl)}
+                    className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-md transition-colors"
+                  >
+                    {tmpl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsAiWorkflowModalOpen(false);
+                  setAiWorkflowError(null);
+                }}
+                className="text-xs h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!aiWorkflowPrompt.trim() || isGeneratingAiWorkflow}
+                onClick={handleGenerateWorkflowWithAi}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5 shadow-xs"
+              >
+                {isGeneratingAiWorkflow ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Generating Graph...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generate on Canvas
+                  </>
+                )}
               </Button>
             </div>
           </div>

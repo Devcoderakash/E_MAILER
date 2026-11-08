@@ -27,7 +27,6 @@ export interface Workspace {
   isOwner?: boolean;
   memberCount?: number;
   isActive?: boolean;
-  defaultEmailProvider?: "RESEND" | "BREVO" | string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -120,7 +119,6 @@ export interface Campaign {
   status: CampaignStatus;
   targetListIds?: string[];
   targetTagIds?: string[];
-  provider?: "RESEND" | "BREVO" | string;
   recipientCount: number;
   sentCount?: number;
   failedCount?: number;
@@ -132,6 +130,8 @@ export interface Campaign {
   unsubscribedCount?: number;
   scheduledAt?: string | null;
   scheduledTimezone?: string | null;
+  googleCalendarEventId?: string | null;
+  googleCalendarSyncedAt?: string | null;
   scheduledJobId?: string | null;
   lastScheduledAt?: string | null;
   schedulingError?: string | null;
@@ -563,46 +563,45 @@ export interface AIImproveResponse {
   };
 }
 
-// Delivery Provider Settings Types
-export interface DeliveryProviderInfo {
-  type: "RESEND" | "BREVO";
-  name: string;
+export interface SmtpSettingsResponse {
   configured: boolean;
+  source: "workspace" | "environment" | "none";
+  user: string | null;
+  senderName: string;
+  replyTo: string | null;
+  host: string;
+  port: number;
+  secure: boolean;
+  isVerified: boolean;
+  lastVerifiedAt: string | null;
+  maskedPassword: string | null;
+}
+
+export interface GoogleCalendarStatusResponse {
   isConfigured: boolean;
-  default: boolean;
-  isDefault: boolean;
-  senderEmail?: string;
-  senderName?: string;
-  supportsPersonalEmail: boolean;
-  supportsPersonalSender: boolean;
-  requiresCustomDomain: boolean;
+  connected: boolean;
+  googleEmail: string | null;
+  lastSyncedAt: string | null;
 }
 
-export interface DeliveryProvidersResponse {
-  defaultProvider: "RESEND" | "BREVO";
-  providers: DeliveryProviderInfo[];
-}
-
-export interface ProviderConnectionTestResponse {
-  success: boolean;
-  ok: boolean;
-  message: string;
-  details?: {
-    success: boolean;
-    provider: string;
-    accountEmail?: string;
-    planType?: string;
-    credits?: number;
-    message: string;
-    testedAt: string;
+export interface AIWorkflowResponse {
+  provider: string;
+  workflow: {
+    name: string;
+    description: string;
+    triggerType: string;
+    nodes: any[];
+    edges: any[];
+  };
+  validation: {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
   };
 }
 
-export interface SendTestEmailResponse {
-  success: boolean;
-  ok?: boolean;
-  status?: string;
-  providerMessageId?: string;
-  message?: string;
-  error?: string;
+export interface AIChatResponse {
+  provider: string;
+  reply: string;
 }
+

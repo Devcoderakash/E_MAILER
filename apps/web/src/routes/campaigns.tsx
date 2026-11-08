@@ -95,7 +95,6 @@ export function CampaignsPage() {
   const [formAudienceType, setFormAudienceType] = useState<"all" | "segmented">("all");
   const [formSelectedListIds, setFormSelectedListIds] = useState<string[]>([]);
   const [formSelectedTagIds, setFormSelectedTagIds] = useState<string[]>([]);
-  const [formProvider, setFormProvider] = useState<"BREVO" | "RESEND">("BREVO");
 
   // Validation result for wizard
   const [wizardValidation, setWizardValidation] = useState<CampaignValidationResponse | null>(null);
@@ -213,8 +212,6 @@ export function CampaignsPage() {
     setFormAudienceType("all");
     setFormSelectedListIds([]);
     setFormSelectedTagIds([]);
-    const defaultProv = activeWorkspace?.defaultEmailProvider?.toUpperCase() === "RESEND" ? "RESEND" : "BREVO";
-    setFormProvider(defaultProv);
     setWizardValidation(null);
     setIsWizardOpen(true);
   };
@@ -233,7 +230,6 @@ export function CampaignsPage() {
       targetListIds?: string[];
       targetTagIds?: string[];
       scheduledAt?: string | null;
-      provider?: string;
     }) => api.createCampaign(data),
     onSuccess: (newCamp) => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
@@ -349,7 +345,6 @@ export function CampaignsPage() {
         htmlContent: formHtmlContent,
         targetListIds: formAudienceType === "segmented" ? formSelectedListIds : [],
         targetTagIds: formAudienceType === "segmented" ? formSelectedTagIds : [],
-        provider: formProvider,
       });
 
       const validationRes = await api.validateCampaign(tempCamp.id);
@@ -393,7 +388,6 @@ export function CampaignsPage() {
         htmlContent: formHtmlContent,
         targetListIds: formAudienceType === "segmented" ? formSelectedListIds : [],
         targetTagIds: formAudienceType === "segmented" ? formSelectedTagIds : [],
-        provider: formProvider,
       });
 
       await api.sendCampaign(created.id);
@@ -452,7 +446,7 @@ export function CampaignsPage() {
       {/* Page Header */}
       <PageHeader
         title="Campaign Manager"
-        description="Design, target, validate, and dispatch high-deliverability broadcast campaigns via Resend & BullMQ."
+        description="Design, target, validate, and dispatch broadcast campaigns via Gmail SMTP & BullMQ."
         badge={
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
             {totalCampaigns} Campaigns
@@ -646,17 +640,6 @@ export function CampaignsPage() {
                         <div className="space-y-0.5 max-w-xs sm:max-w-md">
                           <div className="font-semibold text-slate-900 truncate flex items-center gap-2">
                             <span>{camp.name}</span>
-                            {camp.provider && (
-                              <span
-                                className={`text-[10px] font-medium rounded px-1.5 py-0.2 border ${
-                                  camp.provider === "BREVO"
-                                    ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                    : "text-amber-700 bg-amber-50 border-amber-200"
-                                }`}
-                              >
-                                {camp.provider}
-                              </span>
-                            )}
                             {camp.template && (
                               <span className="text-[10px] font-normal text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.2">
                                 {camp.template.name}
@@ -991,62 +974,6 @@ export function CampaignsPage() {
                     </div>
                   </div>
 
-                  {/* Delivery Provider Selection */}
-                  <div className="pt-2 border-t border-slate-100">
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                      Email Delivery Provider <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div
-                        onClick={() => setFormProvider("BREVO")}
-                        className={`cursor-pointer rounded-lg border p-3 transition-all ${
-                          formProvider === "BREVO"
-                            ? "border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-500"
-                            : "border-slate-200 hover:border-slate-300 bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-xs text-slate-900">Brevo (Recommended)</span>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-medium">
-                            Personal Email OK
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          Supports sending from verified @gmail.com or business addresses without custom DNS setup.
-                        </p>
-                      </div>
-
-                      <div
-                        onClick={() => setFormProvider("RESEND")}
-                        className={`cursor-pointer rounded-lg border p-3 transition-all ${
-                          formProvider === "RESEND"
-                            ? "border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-500"
-                            : "border-slate-200 hover:border-slate-300 bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-xs text-slate-900">Resend</span>
-                          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-medium">
-                            Domain Required
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          Requires a verified custom company domain. Rejects personal webmail (@gmail.com).
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Resend Personal Email Warning */}
-                    {formProvider === "RESEND" && /@(gmail|yahoo|hotmail|outlook|icloud)\.com$/i.test(formFromEmail.trim()) && (
-                      <div className="mt-2.5 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800 flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Warning: Resend requires a custom domain.</strong> Sending with a personal email address ({formFromEmail}) will be rejected by Resend. Switch provider to <strong>Brevo</strong> or configure your verified custom domain.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Reply-To Email (Optional)
@@ -1363,14 +1290,14 @@ export function CampaignsPage() {
                           )}
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">Sender Domain Authorization</span>
+                          <span className="text-slate-600">Sender Authorization</span>
                           {wizardValidation.checklist.hasValidSenderDomain !== false ? (
                             <span className="text-emerald-600 flex items-center gap-1 font-medium">
-                              <Check className="h-3.5 w-3.5" /> Verified Domain / Resend Dev
+                              <Check className="h-3.5 w-3.5" /> Gmail Sender Valid
                             </span>
                           ) : (
                             <span className="text-rose-600 flex items-center gap-1 font-medium">
-                              <X className="h-3.5 w-3.5" /> Restricted (Personal Webmail)
+                              <X className="h-3.5 w-3.5" /> Invalid Sender
                             </span>
                           )}
                         </div>
@@ -1378,11 +1305,11 @@ export function CampaignsPage() {
                           <span className="text-slate-600">Email Delivery Provider</span>
                           {wizardValidation.checklist.hasValidProvider !== false ? (
                             <span className="text-emerald-600 flex items-center gap-1 font-medium">
-                              <Check className="h-3.5 w-3.5" /> Configured (Resend)
+                              <Check className="h-3.5 w-3.5" /> Configured (Gmail SMTP)
                             </span>
                           ) : (
                             <span className="text-rose-600 flex items-center gap-1 font-medium">
-                              <X className="h-3.5 w-3.5" /> Missing RESEND_API_KEY (.env)
+                              <X className="h-3.5 w-3.5" /> Missing GMAIL_SMTP_APP_PASSWORD (.env)
                             </span>
                           )}
                         </div>
@@ -1485,19 +1412,6 @@ export function CampaignsPage() {
                           {formAudienceType === "all" ? "All Active Contacts" : "Segmented"}
                         </div>
                       </div>
-                      <div>
-                        <span className="text-slate-400">Delivery Provider:</span>
-                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                          <span>{formProvider}</span>
-                          <span className={`text-[10px] font-normal px-1.5 py-0.2 rounded ${
-                            formProvider === "BREVO"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}>
-                            {formProvider === "BREVO" ? "Verified Personal OK" : "Custom Domain"}
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -1562,7 +1476,6 @@ export function CampaignsPage() {
                           htmlContent: formHtmlContent,
                           targetListIds: formAudienceType === "segmented" ? formSelectedListIds : [],
                           targetTagIds: formAudienceType === "segmented" ? formSelectedTagIds : [],
-                          provider: formProvider,
                         })
                       }
                       disabled={createCampaignMutation.isPending}
@@ -1698,22 +1611,7 @@ export function CampaignsPage() {
               </div>
 
               {/* Execution Metadata */}
-              <div className="grid grid-cols-3 gap-3 text-slate-600">
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
-                  <span className="text-slate-400 text-[11px]">Delivery Provider</span>
-                  <div className="font-semibold text-slate-800 mt-0.5 flex items-center gap-1.5">
-                    <span>{detailsCampaign.provider || "RESEND"}</span>
-                    <span
-                      className={`text-[10px] px-1 py-0.2 rounded font-normal ${
-                        (detailsCampaign.provider || "RESEND") === "BREVO"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {(detailsCampaign.provider || "RESEND") === "BREVO" ? "Personal OK" : "Domain"}
-                    </span>
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-3 text-slate-600">
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
                   <span className="text-slate-400 text-[11px]">Started At</span>
                   <div className="font-medium text-slate-800 mt-0.5">
@@ -1911,7 +1809,7 @@ export function CampaignsPage() {
               Are you sure you want to send{" "}
               <span className="font-semibold text-slate-900">"{campaignToSend.name}"</span>?
               Eligible active recipients will be snapshotted and sent asynchronously via BullMQ and
-              the Resend provider.
+              the Gmail SMTP provider.
             </p>
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button

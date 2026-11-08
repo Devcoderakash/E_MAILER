@@ -3,7 +3,7 @@ import { redis } from "../config/redis";
 import { prisma } from "../config/database";
 import {
   WEBHOOK_QUEUE_NAME,
-  EmailWebhookJobData,
+  EmailEventJobData,
 } from "../queues/webhook.queue";
 import {
   EmailEventType,
@@ -12,58 +12,14 @@ import {
 } from "@prisma/client";
 
 /**
- * Maps webhook event type strings to Prisma EmailEventType enum for all supported providers
+ * Maps email event type strings to Prisma EmailEventType enum
  */
-export function mapWebhookEventType(
-  provider: string,
-  eventTypeStr: string
-): EmailEventType | null {
+export function mapEmailEventType(eventTypeStr: string): EmailEventType | null {
   const normalized = eventTypeStr.toLowerCase().trim();
 
-  // Brevo specific event types
-  if (provider === "BREVO") {
-    switch (normalized) {
-      case "sent":
-      case "request":
-        return EmailEventType.SENT;
-
-      case "delivered":
-        return EmailEventType.DELIVERED;
-
-      case "opened":
-      case "unique_opened":
-        return EmailEventType.OPENED;
-
-      case "click":
-      case "clicked":
-        return EmailEventType.CLICKED;
-
-      case "soft_bounce":
-      case "hard_bounce":
-      case "invalid_email":
-      case "blocked":
-      case "error":
-        return EmailEventType.BOUNCED;
-
-      case "spam":
-        return EmailEventType.COMPLAINED;
-
-      case "unsubscribed":
-        return EmailEventType.UNSUBSCRIBED;
-
-      case "deferred":
-        return EmailEventType.DELIVERY_DELAYED;
-
-      default:
-        break;
-    }
-  }
-
-  // Resend or generic mapping
   switch (normalized) {
     case "email.sent":
     case "sent":
-    case "request":
       return EmailEventType.SENT;
 
     case "email.delivered":
@@ -80,16 +36,10 @@ export function mapWebhookEventType(
 
     case "email.bounced":
     case "bounced":
-    case "soft_bounce":
-    case "hard_bounce":
-    case "invalid_email":
-    case "blocked":
-    case "error":
       return EmailEventType.BOUNCED;
 
     case "email.complained":
     case "complained":
-    case "spam":
       return EmailEventType.COMPLAINED;
 
     case "email.unsubscribed":
@@ -98,7 +48,6 @@ export function mapWebhookEventType(
 
     case "email.delivery_delayed":
     case "delivery_delayed":
-    case "deferred":
       return EmailEventType.DELIVERY_DELAYED;
 
     default:
@@ -106,24 +55,19 @@ export function mapWebhookEventType(
   }
 }
 
-// Retain for backwards compatibility
-export const mapResendEventType = (typeStr: string) => mapWebhookEventType("RESEND", typeStr);
-
 /**
  * Core event processing logic
  */
-export async function processWebhookEvent(jobData: EmailWebhookJobData) {
+export async function processWebhookEvent(jobData: EmailEventJobData) {
   const { provider, providerEventId, eventType, occurredAt, data } = jobData;
 
-  const rawEmailId = data?.email_id || data?.raw_message_id;
-  if (!rawEmailId) {
+  const emailId = data?.email_id;
+  if (!emailId) {
     console.warn(
       `[WebhookWorker] Missing data.email_id in webhook job ${providerEventId}. Acknowledging.`
     );
     return { status: "skipped", reason: "missing_email_id" };
   }
-
-  const cleanEmailId = String(rawEmailId).replace(/^<|>$/g, "").trim();
 
   // 1. Idempotency Check: Reject duplicate event
   const existingEvent = await prisma.emailEvent.findUnique({
@@ -142,15 +86,9 @@ export async function processWebhookEvent(jobData: EmailWebhookJobData) {
     return { status: "duplicate", id: existingEvent.id };
   }
 
-  // 2. Match CampaignRecipient by providerMessageId (supporting clean ID, with angle brackets, or raw)
+  // 2. Match CampaignRecipient by providerMessageId
   const recipient = await prisma.campaignRecipient.findFirst({
-    where: {
-      OR: [
-        { providerMessageId: cleanEmailId },
-        { providerMessageId: `<${cleanEmailId}>` },
-        { providerMessageId: rawEmailId },
-      ],
-    },
+    where: { providerMessageId: emailId },
     include: {
       campaign: true,
       contact: true,
@@ -159,16 +97,16 @@ export async function processWebhookEvent(jobData: EmailWebhookJobData) {
 
   if (!recipient) {
     console.warn(
-      `[WebhookWorker] No CampaignRecipient found for providerMessageId: ${cleanEmailId} (${provider}). Acknowledging.`
+      `[WebhookWorker] No CampaignRecipient found for providerMessageId: ${emailId}. Acknowledging.`
     );
-    return { status: "unmatched", emailId: cleanEmailId };
+    return { status: "unmatched", emailId };
   }
 
   // 3. Map event type
-  const mappedType = mapWebhookEventType(provider, eventType);
+  const mappedType = mapEmailEventType(eventType);
   if (!mappedType) {
     console.warn(
-      `[WebhookWorker] Unsupported event type: ${eventType} for provider ${provider}. Acknowledging.`
+      `[WebhookWorker] Unsupported event type: ${eventType}. Acknowledging.`
     );
     return { status: "unsupported_event", eventType };
   }
@@ -360,10 +298,10 @@ export async function processWebhookEvent(jobData: EmailWebhookJobData) {
 /**
  * Creates and initializes the BullMQ Webhook Worker
  */
-export function createWebhookWorker(): Worker<EmailWebhookJobData> {
-  const worker = new Worker<EmailWebhookJobData>(
+export function createWebhookWorker(): Worker<EmailEventJobData> {
+  const worker = new Worker<EmailEventJobData>(
     WEBHOOK_QUEUE_NAME,
-    async (job: Job<EmailWebhookJobData>) => {
+    async (job: Job<EmailEventJobData>) => {
       console.log(`[WebhookWorker] Processing webhook job #${job.id} (${job.data.eventType})`);
       return processWebhookEvent(job.data);
     },

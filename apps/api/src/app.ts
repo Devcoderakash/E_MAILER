@@ -119,7 +119,7 @@ export function createApp(): Application {
   // AI Campaign Copilot Routes
   app.use("/api/ai", aiRouter);
 
-  // Workspace Settings & Delivery Provider Routes
+  // Settings & Google Integrations Routes
   app.use("/api/settings", settingsRouter);
 
   // 404 Handler

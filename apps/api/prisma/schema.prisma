@@ -118,26 +118,28 @@ model User {
 
 // Workspace Organization unit for multi-tenancy
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  ownerId   String   @map("owner_id")
-  owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String   @unique
+  ownerId              String   @map("owner_id")
+  owner                User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  defaultEmailProvider String?  @default("GMAIL_SMTP") @map("default_email_provider")
 
-  defaultEmailProvider String      @default("RESEND") @map("default_email_provider")
-  members        WorkspaceMember[]
-  activeUsers    User[]            @relation("UserActiveWorkspace")
-  contacts       Contact[]
-  contactLists   ContactList[]
-  contactTags    ContactTag[]
-  importJobs     ImportJob[]
+  members              WorkspaceMember[]
+  activeUsers          User[]                    @relation("UserActiveWorkspace")
+  contacts             Contact[]
+  contactLists         ContactList[]
+  contactTags          ContactTag[]
+  importJobs           ImportJob[]
   emailTemplates       EmailTemplate[]
   campaigns            Campaign[]
   emailEvents          EmailEvent[]
   automations          Automation[]
   automationExecutions AutomationExecution[]
+  smtpConfig           WorkspaceSmtpConfig?
+  googleCalendar       GoogleCalendarConnection?
 
   @@map("workspaces")
 }
@@ -173,8 +175,8 @@ model Contact {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  listMemberships    ContactListMember[]
-  tagAssignments     ContactTagAssignment[]
+  listMemberships      ContactListMember[]
+  tagAssignments       ContactTagAssignment[]
   campaignRecipients   CampaignRecipient[]
   emailEvents          EmailEvent[]
   automationExecutions AutomationExecution[]
@@ -293,40 +295,42 @@ model EmailTemplate {
 
 // Campaign Model for Campaign Manager & Email Engine
 model Campaign {
-  id                String         @id @default(uuid())
-  workspaceId       String         @map("workspace_id")
-  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name              String
-  subject           String
-  preheader         String?
-  fromName          String         @map("from_name")
-  fromEmail         String         @map("from_email")
-  replyTo           String?        @map("reply_to")
-  templateId        String?        @map("template_id")
-  template          EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  htmlContent       String         @map("html_content") @db.Text
-  status            CampaignStatus @default(DRAFT)
-  provider          String         @default("RESEND") @map("provider")
-  targetListIds     String[]       @default([]) @map("target_list_ids")
-  targetTagIds      String[]       @default([]) @map("target_tag_ids")
-  recipientCount    Int            @default(0) @map("recipient_count")
-  sentCount         Int            @default(0) @map("sent_count")
-  failedCount       Int            @default(0) @map("failed_count")
-  deliveredCount    Int            @default(0) @map("delivered_count")
-  openedCount       Int            @default(0) @map("opened_count")
-  clickedCount      Int            @default(0) @map("clicked_count")
-  bouncedCount      Int            @default(0) @map("bounced_count")
-  complainedCount   Int            @default(0) @map("complained_count")
-  unsubscribedCount Int            @default(0) @map("unsubscribed_count")
-  scheduledAt       DateTime?      @map("scheduled_at")
-  scheduledTimezone String?        @map("scheduled_timezone")
-  scheduledJobId    String?        @map("scheduled_job_id")
-  lastScheduledAt   DateTime?      @map("last_scheduled_at")
-  schedulingError   String?        @map("scheduling_error")
-  startedAt         DateTime?      @map("started_at")
-  completedAt       DateTime?      @map("completed_at")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+  id                     String         @id @default(uuid())
+  workspaceId            String         @map("workspace_id")
+  workspace              Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name                   String
+  subject                String
+  preheader              String?
+  fromName               String         @map("from_name")
+  fromEmail              String         @map("from_email")
+  replyTo                String?        @map("reply_to")
+  templateId             String?        @map("template_id")
+  template               EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  htmlContent            String         @map("html_content") @db.Text
+  status                 CampaignStatus @default(DRAFT)
+  provider               String?        @default("GMAIL_SMTP")
+  targetListIds          String[]       @default([]) @map("target_list_ids")
+  targetTagIds           String[]       @default([]) @map("target_tag_ids")
+  recipientCount         Int            @default(0) @map("recipient_count")
+  sentCount              Int            @default(0) @map("sent_count")
+  failedCount            Int            @default(0) @map("failed_count")
+  deliveredCount         Int            @default(0) @map("delivered_count")
+  openedCount            Int            @default(0) @map("opened_count")
+  clickedCount           Int            @default(0) @map("clicked_count")
+  bouncedCount           Int            @default(0) @map("bounced_count")
+  complainedCount        Int            @default(0) @map("complained_count")
+  unsubscribedCount      Int            @default(0) @map("unsubscribed_count")
+  scheduledAt            DateTime?      @map("scheduled_at")
+  scheduledTimezone      String?        @map("scheduled_timezone")
+  scheduledJobId         String?        @map("scheduled_job_id")
+  lastScheduledAt        DateTime?      @map("last_scheduled_at")
+  schedulingError        String?        @map("scheduling_error")
+  googleCalendarEventId  String?        @map("google_calendar_event_id")
+  googleCalendarSyncedAt DateTime?      @map("google_calendar_synced_at")
+  startedAt              DateTime?      @map("started_at")
+  completedAt            DateTime?      @map("completed_at")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
 
   recipients  CampaignRecipient[]
   emailEvents EmailEvent[]
@@ -347,6 +351,7 @@ model CampaignRecipient {
   firstName         String?                 @map("first_name")
   lastName          String?                 @map("last_name")
   status            CampaignRecipientStatus @default(PENDING)
+  provider          String?                 @default("GMAIL_SMTP")
   attempts          Int                     @default(0)
   errorMessage      String?                 @map("error_message")
   sentAt            DateTime?               @map("sent_at")
@@ -354,7 +359,6 @@ model CampaignRecipient {
   openedAt          DateTime?               @map("opened_at")
   clickedAt         DateTime?               @map("clicked_at")
   bouncedAt         DateTime?               @map("bounced_at")
-  provider          String                  @default("RESEND") @map("provider")
   providerMessageId String?                 @map("provider_message_id")
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
@@ -378,7 +382,7 @@ model EmailEvent {
   campaignRecipient   CampaignRecipient @relation(fields: [campaignRecipientId], references: [id], onDelete: Cascade)
   contactId           String?           @map("contact_id")
   contact             Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  provider            String            @default("RESEND")
+  provider            String            @default("GMAIL_SMTP")
   providerEventId     String            @map("provider_event_id")
   eventType           EmailEventType    @map("event_type")
   occurredAt          DateTime          @map("occurred_at")
@@ -455,4 +459,55 @@ model AutomationStepExecution {
   @@index([executionId])
   @@index([nodeId])
   @@map("automation_step_executions")
+}
+
+// Workspace Gmail SMTP Settings
+model WorkspaceSmtpConfig {
+  id                String    @id @default(uuid())
+  workspaceId       String    @unique @map("workspace_id")
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              String // gmail email address
+  encryptedPassword String    @map("encrypted_password") // AES-256-GCM encrypted App Password
+  host              String    @default("smtp.gmail.com")
+  port              Int       @default(587)
+  secure            Boolean   @default(false)
+  senderName        String    @default("MailPilot") @map("sender_name")
+  replyTo           String?   @map("reply_to")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  lastVerifiedAt    DateTime? @map("last_verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("workspace_smtp_configs")
+}
+
+// Google Calendar OAuth & Synchronization
+model GoogleCalendarConnection {
+  id                    String    @id @default(uuid())
+  workspaceId           String    @unique @map("workspace_id")
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  googleEmail           String    @map("google_email")
+  encryptedAccessToken  String    @map("encrypted_access_token")
+  encryptedRefreshToken String    @map("encrypted_refresh_token")
+  tokenExpiry           DateTime  @map("token_expiry")
+  calendarId            String    @default("primary") @map("calendar_id")
+  scope                 String    @default("https://www.googleapis.com/auth/calendar.events")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  events GoogleCalendarEvent[]
+
+  @@map("google_calendar_connections")
+}
+
+model GoogleCalendarEvent {
+  id            String                   @id @default(uuid())
+  connectionId  String                   @map("connection_id")
+  connection    GoogleCalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  campaignId    String                   @unique @map("campaign_id")
+  googleEventId String                   @map("google_event_id")
+  calendarId    String                   @default("primary") @map("calendar_id")
+  syncedAt      DateTime                 @default(now()) @map("synced_at")
+
+  @@map("google_calendar_events")
 }

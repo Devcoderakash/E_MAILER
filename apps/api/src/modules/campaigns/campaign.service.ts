@@ -6,10 +6,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { addCampaignDispatchJob } from "../../queues/campaign.queue";
-import { ResendProvider } from "../../providers/resend.provider";
-import { BrevoEmailProvider } from "../../providers/brevo.provider";
-import { EmailProviderFactory } from "../../providers/email.factory";
-import { EmailProviderType } from "../../providers/provider.types";
+import { GmailSmtpProvider } from "../../providers";
 
 export interface PaginationParams {
   page?: number;
@@ -39,7 +36,6 @@ export interface CreateCampaignDTO {
   targetListIds?: string[];
   targetTagIds?: string[];
   scheduledAt?: string | null;
-  provider?: string;
 }
 
 export interface UpdateCampaignDTO {
@@ -55,7 +51,6 @@ export interface UpdateCampaignDTO {
   targetTagIds?: string[];
   scheduledAt?: string | null;
   status?: CampaignStatus;
-  provider?: string;
 }
 
 export interface CampaignValidationResult {
@@ -69,7 +64,6 @@ export interface CampaignValidationResult {
     hasAudience: boolean;
     hasValidProvider: boolean;
     hasValidSenderDomain: boolean;
-    selectedProvider?: string;
   };
   audienceSummary: {
     totalEligibleActive: number;
@@ -225,15 +219,6 @@ export class CampaignService {
       }
     }
 
-    let chosenProvider = data.provider?.toUpperCase();
-    if (!chosenProvider) {
-      const ws = await prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { defaultEmailProvider: true },
-      });
-      chosenProvider = ws?.defaultEmailProvider || "RESEND";
-    }
-
     const campaign = await prisma.campaign.create({
       data: {
         workspaceId,
@@ -249,7 +234,6 @@ export class CampaignService {
         targetTagIds: data.targetTagIds || [],
         status: data.scheduledAt ? CampaignStatus.SCHEDULED : CampaignStatus.DRAFT,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
-        provider: chosenProvider,
       },
       include: {
         template: {
@@ -317,7 +301,6 @@ export class CampaignService {
       }
     }
     if (data.status !== undefined) updateData.status = data.status;
-    if (data.provider !== undefined) updateData.provider = data.provider.toUpperCase();
 
     const updated = await prisma.campaign.update({
       where: { id: campaignId },
@@ -504,52 +487,13 @@ export class CampaignService {
     );
 
     const hasAudience = audience.stats.totalEligibleActive > 0;
-
-    const providerType: EmailProviderType = (
-      (campaign as any).provider || "RESEND"
-    ).toUpperCase() as EmailProviderType;
-
-    let isProviderConfigured = false;
-    let hasValidSenderDomain = false;
+    const isProviderConfigured =
+      GmailSmtpProvider.isConfigured() ||
+      GmailSmtpProvider.isTestModeEnabled() ||
+      Boolean(options?.isTest);
+    const hasValidSender = hasFromEmail && campaign.fromEmail.includes("@");
 
     const errors: string[] = [];
-
-    if (providerType === "BREVO") {
-      isProviderConfigured =
-        BrevoEmailProvider.isConfigured() ||
-        BrevoEmailProvider.isTestModeEnabled() ||
-        Boolean(options?.isTest);
-      // Brevo allows verified senders including personal webmail addresses (e.g. verified Gmail)
-      hasValidSenderDomain = hasFromEmail;
-
-      if (!isProviderConfigured) {
-        errors.push(
-          "Brevo email delivery provider is unconfigured. Set a valid BREVO_API_KEY in .env before dispatching live campaigns."
-        );
-      }
-    } else {
-      // RESEND
-      isProviderConfigured =
-        ResendProvider.isConfigured() ||
-        ResendProvider.isTestModeEnabled() ||
-        Boolean(options?.isTest);
-      const isPersonalFrom = ResendProvider.isPersonalWebmail(campaign.fromEmail);
-      hasValidSenderDomain =
-        hasFromEmail &&
-        (!isPersonalFrom || ResendProvider.isTestModeEnabled() || Boolean(options?.isTest));
-
-      if (hasFromEmail && isPersonalFrom && !options?.isTest) {
-        errors.push(
-          `Sender email cannot use a personal webmail address (@${campaign.fromEmail.split("@")[1]}). Resend requires a verified sending domain or 'onboarding@resend.dev' for testing.`
-        );
-      }
-      if (!isProviderConfigured) {
-        errors.push(
-          "Email delivery provider (Resend) is unconfigured. Set a valid RESEND_API_KEY in .env before dispatching live campaigns."
-        );
-      }
-    }
-
     if (!hasSubject) errors.push("Campaign subject line is required.");
     if (!hasFromName) errors.push("Sender name ('From Name') is required.");
     if (!hasFromEmail) errors.push("Valid sender email ('From Email') is required.");
@@ -557,6 +501,11 @@ export class CampaignService {
     if (!hasAudience) {
       errors.push(
         "No active recipients found matching target audience. Excluded unsubscribed/bounced contacts cannot receive emails."
+      );
+    }
+    if (!isProviderConfigured) {
+      errors.push(
+        "Gmail SMTP delivery provider is unconfigured. Set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD in environment before dispatching live campaigns."
       );
     }
 
@@ -570,8 +519,7 @@ export class CampaignService {
         hasContent,
         hasAudience,
         hasValidProvider: isProviderConfigured,
-        hasValidSenderDomain,
-        selectedProvider: providerType,
+        hasValidSenderDomain: hasValidSender,
       },
       audienceSummary: audience.stats,
     };
@@ -607,11 +555,6 @@ export class CampaignService {
       throw err;
     }
 
-    // Resolve provider type for this campaign
-    const providerType: EmailProviderType = (
-      (campaign as any).provider || "RESEND"
-    ).toUpperCase() as EmailProviderType;
-
     // Resolve eligible audience
     const audience = await this.resolveAudienceContacts(
       workspaceId,
@@ -639,7 +582,6 @@ export class CampaignService {
           lastName: contact.lastName,
           status: CampaignRecipientStatus.PENDING,
           attempts: 0,
-          provider: providerType,
         })),
         skipDuplicates: true,
       });
@@ -687,7 +629,6 @@ export class CampaignService {
         batchIndex,
         totalBatches,
         isTest: options?.isTest,
-        provider: providerType,
       });
     }
 

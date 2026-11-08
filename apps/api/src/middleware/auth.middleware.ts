@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import { User } from "@supabase/supabase-js";
 import { supabaseAdmin } from "../config/supabase";
 
-// Extend Express Request to include authenticated user
+// Extend Express Request to include authenticated user and active workspace
 declare global {
   namespace Express {
     interface Request {
       user?: User;
+      workspaceId?: string;
     }
   }
 }
@@ -60,4 +61,36 @@ export async function requireAuth(
     });
   }
 }
+
+/**
+ * Middleware: Verify and resolve active workspace for authenticated user
+ */
+export async function requireWorkspace(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized", message: "User not authenticated." });
+      return;
+    }
+
+    const { CampaignService } = await import("../modules/campaigns/campaign.service");
+    const requestedWorkspaceId = req.headers["x-workspace-id"] as string | undefined;
+    const { workspaceId } = await CampaignService.resolveActiveWorkspace(
+      req.user.id,
+      requestedWorkspaceId
+    );
+
+    req.workspaceId = workspaceId;
+    next();
+  } catch (err: any) {
+    res.status(403).json({
+      error: "WorkspaceForbidden",
+      message: err.message || "Failed to resolve active workspace.",
+    });
+  }
+}
+
 

@@ -44,6 +44,12 @@ export function ScheduleCenterPage() {
 
   // Active Timezone selection (auto-detects browser timezone)
   const [selectedTimezone, setSelectedTimezone] = useState<string>(() => getBrowserTimezone());
+
+  const { data: calendarStatus } = useQuery({
+    queryKey: ["calendar-status", activeWorkspace?.id],
+    queryFn: () => api.getCalendarStatus(),
+    enabled: Boolean(activeWorkspace?.id),
+  });
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [statusFilter, setStatusFilter] = useState<"all" | "SCHEDULED" | "SENT" | "DRAFT">("all");
   const [timelineSearch, setTimelineSearch] = useState("");
@@ -344,6 +350,38 @@ export function ScheduleCenterPage() {
         }
       />
 
+      {/* Google Calendar Status Ribbon */}
+      {calendarStatus?.connected ? (
+        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-blue-50/70 border border-blue-200/80 text-blue-900 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-blue-600" />
+            <span>
+              Google Calendar Sync <strong>Active</strong> &middot; Events sync automatically to{" "}
+              <span className="font-mono text-blue-950 font-medium">{calendarStatus.googleEmail}</span>
+            </span>
+          </div>
+          <a
+            href="/settings?tab=google"
+            className="text-[11px] text-blue-700 hover:text-blue-900 underline font-medium"
+          >
+            Manage Settings
+          </a>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-slate-400" />
+            <span>Sync MailPilot dispatch schedules directly to your team's Google Calendar.</span>
+          </div>
+          <a
+            href="/settings?tab=google"
+            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold underline"
+          >
+            Connect Google Calendar &rarr;
+          </a>
+        </div>
+      )}
+
       {/* BullMQ Engine & Timezone Bar */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         {/* Left: Engine Health */}
@@ -544,6 +582,15 @@ export function ScheduleCenterPage() {
                                 >
                                   <Clock className="h-3 w-3" />
                                   {countdown.label}
+                                </span>
+                              )}
+                              {item.googleCalendarEventId && (
+                                <span
+                                  className="rounded-full px-2.5 py-0.5 text-[10px] font-medium border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1"
+                                  title="Synchronized with Google Calendar"
+                                >
+                                  <CalendarIcon className="h-3 w-3 text-blue-600" />
+                                  Google Calendar
                                 </span>
                               )}
                             </div>

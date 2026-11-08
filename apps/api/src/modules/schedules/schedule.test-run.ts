@@ -4,6 +4,7 @@ import { ScheduleService } from "./schedule.service";
 import { CampaignService } from "../campaigns/campaign.service";
 import { campaignQueue, getScheduledJobId } from "../../queues/campaign.queue";
 import { createCampaignWorker } from "../../workers/campaign.worker";
+import { GmailSmtpProvider } from "../../providers";
 import {
   ContactStatus,
   ContactSource,
@@ -15,6 +16,7 @@ async function runScheduleVerification() {
   console.log("🧪 MAILPILOT PHASE 7: SCHEDULING VERIFICATION");
   console.log("=================================================\n");
 
+  GmailSmtpProvider.enableTestMode();
   const timestamp = Date.now();
   const testEmail = `schedule-tester-${timestamp}@mailpilot.io`;
   const testSupabaseId = `supa-sched-${timestamp}`;
@@ -282,6 +284,7 @@ async function runScheduleVerification() {
 
     // 12. Cleanup
     console.log("\n12. Cleaning up test fixtures...");
+    GmailSmtpProvider.disableTestMode();
     await worker.close();
 
     await prisma.campaignRecipient.deleteMany({ where: { campaignId: campaign.id } });
@@ -297,6 +300,7 @@ async function runScheduleVerification() {
 
     console.log("\n✨ ALL PHASE 7 SCHEDULING TESTS PASSED SUCCESSFULLY! ✨");
   } catch (err) {
+    GmailSmtpProvider.disableTestMode();
     await worker.close();
     await prisma.$disconnect();
     await redis.quit();

@@ -126,7 +126,7 @@ export function AICopilotModal({
               <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                 <span>AI Campaign Copilot</span>
                 <span className="text-[10px] font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200/50">
-                  {aiStatus?.provider || "OpenAI"}
+                  {aiStatus?.provider || "Google Gemini"}
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500">

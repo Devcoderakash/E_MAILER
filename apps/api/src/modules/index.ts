@@ -12,4 +12,5 @@ export { analyticsRouter } from "./analytics/analytics.routes";
 export { webhookRouter } from "./webhooks/webhook.routes";
 export { automationRouter } from "./automations/automation.routes";
 export { aiRouter } from "./ai/ai.routes";
-export { settingsRouter } from "./settings/settings.routes";
+export { default as settingsRouter } from "./settings/settings.routes";
+

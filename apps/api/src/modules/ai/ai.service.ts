@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { getAIProvider } from "./ai.provider";
+import { getAIProvider, ChatMessage } from "./ai.provider";
+import { AutomationValidator, WorkflowDefinition } from "../automations/automation.validator";
 
 // Rate limiting in-memory store: workspaceId -> timestamp array
 const workspaceRateLimits = new Map<string, number[]>();
@@ -30,6 +31,27 @@ export const improveCampaignSchema = z.object({
   subject: z.string().trim().max(300).optional(),
   preheader: z.string().trim().max(300).optional(),
   htmlContent: z.string().trim().max(15000).optional(),
+});
+
+export const generateWorkflowSchema = z.object({
+  prompt: z.string().trim().min(5, "Prompt must be at least 5 characters").max(1000),
+});
+
+export const chatSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "model", "assistant"]),
+        content: z.string().min(1),
+      })
+    )
+    .min(1, "At least one message is required"),
+  context: z
+    .object({
+      campaignGoal: z.string().optional(),
+      audience: z.string().optional(),
+    })
+    .optional(),
 });
 
 export class AIService {
@@ -68,8 +90,12 @@ export class AIService {
    */
   private static parseJSONResponse<T>(text: string, fallback: T): T {
     try {
-      // Strip markdown code fences if present
-      const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+      // Strip markdown code fences if present (```json ... ```)
+      const cleaned = text
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
       return JSON.parse(cleaned);
     } catch {
       return fallback;
@@ -230,6 +256,139 @@ Format strictly as JSON:
     return {
       provider: provider.name,
       analysis,
+    };
+  }
+
+  /**
+   * Generate visual automation workflow from natural language prompt
+   */
+  static async generateWorkflow(
+    workspaceId: string,
+    params: z.infer<typeof generateWorkflowSchema>
+  ) {
+    this.checkRateLimit(workspaceId);
+    const provider = getAIProvider();
+
+    const systemPrompt = `You are MailPilot's Automation AI Architect. You convert natural language descriptions of email marketing funnels into valid React Flow workflow definitions.
+Allowed trigger types (must have exactly ONE trigger at the start):
+- "contact_subscribed" (When a new subscriber signs up)
+- "contact_added_to_list" (When subscriber joins a list, data: { listId: string })
+- "tag_assigned" (When tag is given, data: { tagName: string })
+- "contact_birthday" (Annual birthday)
+
+Allowed logic node types:
+- "delay" (data: { duration: number, unit: "minutes" | "hours" | "days" })
+- "condition" (data: { conditionType: "has_tag" | "in_list", tagId?: string, listId?: string })
+  * For condition nodes, edges MUST specify sourceHandle: "true" (Yes branch) or "false" (No branch).
+
+Allowed action node types:
+- "send_email" (data: { subject: string, htmlContent: string, fromName?: string, fromEmail?: string })
+- "add_tag" (data: { tagName: string })
+- "remove_tag" (data: { tagId: string })
+- "add_to_list" (data: { listId: string })
+- "remove_from_list" (data: { listId: string })
+
+Positions:
+Layout nodes vertically: trigger at {x: 250, y: 50}, next node at {x: 250, y: 180}, next at {x: 250, y: 310}, etc. If branching, branch left ({x: 100, y: 450}) and right ({x: 400, y: 450}).
+Return ONLY a valid JSON object matching the schema below without markdown or comments:
+{
+  "name": "Title of Workflow",
+  "description": "Brief description",
+  "triggerType": "contact_subscribed",
+  "nodes": [
+    { "id": "node-1", "type": "contact_subscribed", "position": { "x": 250, "y": 50 }, "data": { "label": "Contact Subscribed" } }
+  ],
+  "edges": [
+    { "id": "e1-2", "source": "node-1", "target": "node-2" }
+  ]
+}`;
+
+    const prompt = `Create an automated marketing workflow based on this requirement:
+"${params.prompt}"
+
+Strictly return JSON matching the specified structure.`;
+
+    const text = await provider.generateText(prompt, systemPrompt);
+
+    const fallbackWorkflow: WorkflowDefinition & { name: string; description: string; triggerType: string } = {
+      name: "Auto-Generated Workflow",
+      description: params.prompt,
+      triggerType: "contact_subscribed",
+      nodes: [
+        {
+          id: "node-trig-1",
+          type: "contact_subscribed",
+          position: { x: 250, y: 50 },
+          data: { label: "Contact Subscribed" },
+        },
+        {
+          id: "node-delay-1",
+          type: "delay",
+          position: { x: 250, y: 180 },
+          data: { label: "Wait 1 Day", duration: 1, unit: "days" },
+        },
+        {
+          id: "node-act-1",
+          type: "send_email",
+          position: { x: 250, y: 310 },
+          data: {
+            label: "Send Welcome Email",
+            subject: "Welcome to MailPilot!",
+            htmlContent: "<p>Thank you for subscribing to our updates.</p>",
+          },
+        },
+      ],
+      edges: [
+        { id: "e-trig-del", source: "node-trig-1", target: "node-delay-1" },
+        { id: "e-del-act", source: "node-delay-1", target: "node-act-1" },
+      ],
+    };
+
+    let generated = this.parseJSONResponse<any>(text, fallbackWorkflow);
+
+    // Validate that nodes and edges exist
+    if (!generated || !Array.isArray(generated.nodes) || generated.nodes.length === 0) {
+      generated = fallbackWorkflow;
+    }
+
+    // Run official validator
+    const validation = AutomationValidator.validate({
+      nodes: generated.nodes,
+      edges: generated.edges || [],
+    });
+
+    return {
+      provider: provider.name,
+      workflow: {
+        name: generated.name || "AI Generated Workflow",
+        description: generated.description || params.prompt,
+        triggerType: generated.triggerType || generated.nodes[0]?.type || "contact_subscribed",
+        nodes: generated.nodes,
+        edges: generated.edges || [],
+      },
+      validation,
+    };
+  }
+
+  /**
+   * Conversational Campaign Copilot assistant
+   */
+  static async chatCopilot(
+    workspaceId: string,
+    params: z.infer<typeof chatSchema>
+  ) {
+    this.checkRateLimit(workspaceId);
+    const provider = getAIProvider();
+
+    const systemPrompt = `You are MailPilot's AI Campaign Copilot, a strategic email marketing and automation consultant.
+Provide direct, highly actionable advice on subject lines, email copy, audience segmentation, sending cadences, and automation workflows.
+Be concise, practical, and helpful.`;
+
+    const reply = await provider.chat(params.messages as ChatMessage[], systemPrompt);
+
+    return {
+      provider: provider.name,
+      reply,
     };
   }
 }

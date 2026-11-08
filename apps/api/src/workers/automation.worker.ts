@@ -11,9 +11,7 @@ import {
   WorkflowNode,
   WorkflowEdge,
 } from "../modules/automations/automation.validator";
-import { ResendProvider } from "../providers/resend.provider";
-import { EmailProviderFactory } from "../providers/email.factory";
-import { EmailProviderType } from "../providers/provider.types";
+import { GmailSmtpProvider } from "../providers";
 import {
   AutomationStatus,
   AutomationExecutionStatus,
@@ -279,26 +277,21 @@ export class AutomationExecutionEngine {
         const htmlContent = data.htmlContent || `<p>Hello ${contact.firstName || "there"},</p><p>This is an automated workflow message.</p>`;
         const fromName = data.fromName || "MailPilot Automations";
         const fromEmail = data.fromEmail || "automations@mailpilot.io";
-        const providerType: EmailProviderType = (
-          data.provider || "RESEND"
-        ).toUpperCase() as EmailProviderType;
-        const emailDeliveryProvider = EmailProviderFactory.getProvider(providerType);
 
-        const res = await emailDeliveryProvider.send({
+        const res = await GmailSmtpProvider.send({
           to: contact.email,
-          toName: contact.firstName ? `${contact.firstName} ${contact.lastName || ""}`.trim() : null,
           subject,
           html: htmlContent,
           fromName,
           fromEmail,
+          workspaceId,
         });
 
         return {
-          sent: res.success,
+          sent: true,
           messageId: res.messageId,
           to: contact.email,
           subject,
-          provider: providerType,
         };
       }
 

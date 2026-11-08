@@ -23,21 +23,26 @@ const envSchema = z.object({
   // Redis & BullMQ
   REDIS_URL: z.string().min(1, "REDIS_URL is required").default("redis://127.0.0.1:6379"),
 
-  // Integrations & Webhooks (Resend)
-  RESEND_API_KEY: z.string().optional(),
-  RESEND_WEBHOOK_SECRET: z.string().optional(),
+  // Email Delivery Provider (Gmail SMTP)
+  GMAIL_SMTP_USER: z.string().optional(),
+  GMAIL_SMTP_APP_PASSWORD: z.string().optional(),
+  GMAIL_SMTP_HOST: z.string().default("smtp.gmail.com"),
+  GMAIL_SMTP_PORT: z.coerce.number().default(587),
+  GMAIL_SMTP_SECURE: z.preprocess((val) => val === "true" || val === true || val === "1", z.boolean()).default(false),
+  GMAIL_SENDER_NAME: z.string().default("MailPilot"),
 
-  // Brevo Provider Configuration
-  BREVO_API_KEY: z.string().optional(),
-  BREVO_SENDER_EMAIL: z.string().optional(),
-  BREVO_SENDER_NAME: z.string().optional(),
-  BREVO_WEBHOOK_SECRET: z.string().optional(),
-  DEFAULT_EMAIL_PROVIDER: z.enum(["RESEND", "BREVO"]).default("RESEND"),
+  // Encryption Key for sensitive OAuth tokens & App Passwords (AES-256-GCM)
+  ENCRYPTION_KEY: z.string().default("mailpilot-secure-encryption-key-32-bytes-minimum!"),
+  TOKEN_ENCRYPTION_KEY: z.string().optional(),
 
-  // Phase 9: AI Campaign Copilot
-  AI_PROVIDER: z.string().default("openai"),
-  AI_API_KEY: z.string().optional(),
-  AI_MODEL: z.string().optional(),
+  // Google Calendar Integration (OAuth 2.0 Preparation)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+
+  // Google Gemini AI Integration (@google/genai Preparation)
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-3.5-flash-lite"),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -48,14 +53,11 @@ function validateEnv(): Env {
   if (!result.success) {
     console.error("❌ Invalid environment variables configuration:");
     console.error(JSON.stringify(result.error.format(), null, 2));
-    
-    // In test or initial setup without .env, we provide fallback defaults to avoid premature crashing during dry runs if needed,
-    // but in strict production or runtime, fail early.
+
     if (process.env.NODE_ENV === "production") {
       throw new Error("Missing critical environment variables in production.");
     }
-    
-    // For local dev convenience if .env is missing or incomplete, output warning
+
     console.warn("⚠️  Operating with fallback environment variables. Please populate .env file.");
     return {
       NODE_ENV: "development",
@@ -67,16 +69,19 @@ function validateEnv(): Env {
       SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || "placeholder-publishable-key",
       SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || "placeholder-secret-key",
       REDIS_URL: process.env.REDIS_URL || "redis://127.0.0.1:6379",
-      RESEND_API_KEY: process.env.RESEND_API_KEY,
-      RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
-      BREVO_API_KEY: process.env.BREVO_API_KEY,
-      BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
-      BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME,
-      BREVO_WEBHOOK_SECRET: process.env.BREVO_WEBHOOK_SECRET,
-      DEFAULT_EMAIL_PROVIDER: (process.env.DEFAULT_EMAIL_PROVIDER as any) || "RESEND",
-      AI_PROVIDER: process.env.AI_PROVIDER || "openai",
-      AI_API_KEY: process.env.AI_API_KEY,
-      AI_MODEL: process.env.AI_MODEL,
+      GMAIL_SMTP_USER: process.env.GMAIL_SMTP_USER,
+      GMAIL_SMTP_APP_PASSWORD: process.env.GMAIL_SMTP_APP_PASSWORD,
+      GMAIL_SMTP_HOST: process.env.GMAIL_SMTP_HOST || "smtp.gmail.com",
+      GMAIL_SMTP_PORT: Number(process.env.GMAIL_SMTP_PORT) || 587,
+      GMAIL_SMTP_SECURE: process.env.GMAIL_SMTP_SECURE === "true",
+      GMAIL_SENDER_NAME: process.env.GMAIL_SENDER_NAME || "MailPilot",
+      ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || "mailpilot-secure-encryption-key-32-bytes-minimum!",
+      TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY,
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+      GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
     };
   }
 
@@ -84,4 +89,3 @@ function validateEnv(): Env {
 }
 
 export const env = validateEnv();
-

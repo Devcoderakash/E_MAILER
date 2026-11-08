@@ -1,23 +1,17 @@
 import { Router } from "express";
 import { SettingsController } from "./settings.controller";
-import { requireAuth } from "../../middleware/auth.middleware";
+import { requireAuth, requireWorkspace } from "../../middleware/auth.middleware";
 
-const settingsRouter: Router = Router();
+const router: Router = Router();
 
 // All settings routes require authentication and workspace scope
-settingsRouter.use(requireAuth);
+router.use(requireAuth);
+router.use(requireWorkspace);
 
-// Provider listing and active default
-settingsRouter.get("/providers", SettingsController.getProviders);
+router.get("/smtp", SettingsController.getSmtpConfig);
+router.post("/smtp", SettingsController.saveSmtpConfig);
+router.post("/smtp/test", SettingsController.testSmtpConnection);
+router.post("/smtp/send-test", SettingsController.sendTestEmail);
+router.delete("/smtp", SettingsController.deleteSmtpConfig);
 
-// Provider connection diagnostics
-settingsRouter.post("/providers/:provider/test-connection", SettingsController.testConnection);
-
-// Controlled single-recipient test email delivery
-settingsRouter.post("/providers/:provider/send-test-email", SettingsController.sendTestEmail);
-
-// Update workspace default provider
-settingsRouter.patch("/providers/default", SettingsController.setDefaultProvider);
-
-export { settingsRouter };
-
+export default router;
