@@ -9,6 +9,8 @@ import {
   CampaignDispatchJobResult,
 } from "../queues/campaign.queue";
 import { ResendProvider } from "../providers/resend.provider";
+import { EmailProviderFactory } from "../providers/email.factory";
+import { EmailProviderType } from "../providers/provider.types";
 import { CampaignService } from "../modules/campaigns/campaign.service";
 import { CampaignStatus, CampaignRecipientStatus } from "@prisma/client";
 
@@ -219,10 +221,20 @@ export function createCampaignWorker() {
           subject: campaign.subject,
         });
 
-        // Dispatch email via Resend
-        const sendResult = await ResendProvider.send(
+        // Resolve delivery provider (Brevo or Resend)
+        const providerType: EmailProviderType =
+          (job.data as CampaignDispatchJobData).provider ||
+          ((campaign as any).provider as EmailProviderType) ||
+          "RESEND";
+        const emailDeliveryProvider = EmailProviderFactory.getProvider(providerType);
+
+        // Dispatch email via resolved delivery provider
+        const sendResult = await emailDeliveryProvider.send(
           {
             to: recipient.email,
+            toName: recipient.firstName
+              ? `${recipient.firstName} ${recipient.lastName || ""}`.trim()
+              : null,
             fromName: campaign.fromName,
             fromEmail: campaign.fromEmail,
             replyTo: campaign.replyTo,
@@ -233,6 +245,12 @@ export function createCampaignWorker() {
               { name: "campaign_id", value: campaign.id },
               { name: "workspace_id", value: campaign.workspaceId },
             ],
+            params: {
+              first_name: recipient.firstName,
+              last_name: recipient.lastName,
+              email: recipient.email,
+              company: recipient.contact?.company || null,
+            },
           },
           { isTest: (job.data as CampaignDispatchJobData).isTest }
         );
@@ -243,6 +261,7 @@ export function createCampaignWorker() {
             data: {
               status: CampaignRecipientStatus.SENT,
               sentAt: new Date(),
+              provider: providerType,
               providerMessageId: sendResult.messageId || null,
               errorMessage: null,
             },

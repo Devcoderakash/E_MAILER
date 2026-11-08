@@ -17,6 +17,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@getbrevo/brevo':
+        specifier: ^6.2.0
+        version: 6.2.0
       '@prisma/client':
         specifier: ^6.4.1
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -534,6 +537,10 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@getbrevo/brevo@6.2.0':
+    resolution: {integrity: sha512-k+7w3Desc+bVF+LpJ+1/4wfiopaJDl4ky7jJMQbtjT3loVpS8b1xuFBTfdzZnAyYSmL8Rov2n8GeRxGt2p0oRA==}
+    engines: {node: '>=18.0.0'}
 
   '@ioredis/commands@1.10.0':
     resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
@@ -2314,6 +2321,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@getbrevo/brevo@6.2.0': {}
 
   '@ioredis/commands@1.10.0': {}
 

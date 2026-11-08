@@ -1,13 +1,13 @@
 import { Queue } from "bullmq";
 import { redis } from "../config/redis";
 
-export interface ResendWebhookJobData {
-  provider: "RESEND";
+export interface EmailWebhookJobData {
+  provider: "RESEND" | "BREVO";
   providerEventId: string;
-  eventType: string; // e.g. "email.sent", "email.delivered", "email.opened", "email.clicked", "email.bounced", "email.complained", "email.delivery_delayed"
+  eventType: string; // e.g. "email.delivered", "delivered", "opened", "click", "hard_bounce", etc.
   occurredAt: string;
   data: {
-    email_id: string; // Resend message ID
+    email_id: string; // Provider message ID
     from?: string;
     to?: string[];
     subject?: string;
@@ -26,9 +26,11 @@ export interface ResendWebhookJobData {
   headers?: Record<string, string>;
 }
 
+export type ResendWebhookJobData = EmailWebhookJobData;
+
 export const WEBHOOK_QUEUE_NAME = "webhook-processing-queue";
 
-export const webhookQueue = new Queue<ResendWebhookJobData>(WEBHOOK_QUEUE_NAME, {
+export const webhookQueue = new Queue<EmailWebhookJobData>(WEBHOOK_QUEUE_NAME, {
   connection: redis,
   defaultJobOptions: {
     attempts: 3,

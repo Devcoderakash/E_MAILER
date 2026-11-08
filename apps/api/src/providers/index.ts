@@ -1,3 +1,4 @@
-// Third-party external service providers (e.g. Resend) configured in future phases
-export {};
-
+export * from "./provider.types";
+export * from "./resend.provider";
+export * from "./brevo.provider";
+export * from "./email.factory";

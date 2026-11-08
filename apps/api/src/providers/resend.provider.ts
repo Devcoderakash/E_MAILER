@@ -1,25 +1,13 @@
 import { Resend } from "resend";
 import { env } from "../config/env";
 import crypto from "crypto";
+import {
+  SendEmailOptions,
+  SendEmailResult,
+  ProviderConnectionTestResult,
+} from "./provider.types";
 
-export interface SendEmailOptions {
-  to: string;
-  fromName: string;
-  fromEmail: string;
-  subject: string;
-  html: string;
-  replyTo?: string | null;
-  preheader?: string | null;
-  tags?: { name: string; value: string }[];
-}
-
-export interface SendEmailResult {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-  errorCode?: string;
-  simulated: boolean;
-}
+export { SendEmailOptions, SendEmailResult };
 
 export class ResendProvider {
   private static resendClient: Resend | null = null;
@@ -65,6 +53,40 @@ export class ResendProvider {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Test connection to Resend API.
+   */
+  public static async testConnection(): Promise<ProviderConnectionTestResult> {
+    const testedAt = new Date().toISOString();
+
+    if (!this.isConfigured()) {
+      return {
+        success: false,
+        provider: "RESEND",
+        message: "Resend API key is unconfigured or a placeholder in .env (RESEND_API_KEY).",
+        testedAt,
+      };
+    }
+
+    try {
+      const client = this.getClient()!;
+      const domains = await client.domains.list();
+      return {
+        success: true,
+        provider: "RESEND",
+        message: `Successfully connected to Resend (${domains.data?.data?.length || 0} domains configured).`,
+        testedAt,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        provider: "RESEND",
+        message: err.message || "Failed to communicate with Resend API",
+        testedAt,
+      };
+    }
   }
 
   /**

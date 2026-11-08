@@ -23,9 +23,16 @@ const envSchema = z.object({
   // Redis & BullMQ
   REDIS_URL: z.string().min(1, "REDIS_URL is required").default("redis://127.0.0.1:6379"),
 
-  // Integrations & Webhooks
+  // Integrations & Webhooks (Resend)
   RESEND_API_KEY: z.string().optional(),
   RESEND_WEBHOOK_SECRET: z.string().optional(),
+
+  // Brevo Provider Configuration
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().optional(),
+  BREVO_SENDER_NAME: z.string().optional(),
+  BREVO_WEBHOOK_SECRET: z.string().optional(),
+  DEFAULT_EMAIL_PROVIDER: z.enum(["RESEND", "BREVO"]).default("RESEND"),
 
   // Phase 9: AI Campaign Copilot
   AI_PROVIDER: z.string().default("openai"),
@@ -61,6 +68,12 @@ function validateEnv(): Env {
       SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || "placeholder-secret-key",
       REDIS_URL: process.env.REDIS_URL || "redis://127.0.0.1:6379",
       RESEND_API_KEY: process.env.RESEND_API_KEY,
+      RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+      BREVO_API_KEY: process.env.BREVO_API_KEY,
+      BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
+      BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME,
+      BREVO_WEBHOOK_SECRET: process.env.BREVO_WEBHOOK_SECRET,
+      DEFAULT_EMAIL_PROVIDER: (process.env.DEFAULT_EMAIL_PROVIDER as any) || "RESEND",
       AI_PROVIDER: process.env.AI_PROVIDER || "openai",
       AI_API_KEY: process.env.AI_API_KEY,
       AI_MODEL: process.env.AI_MODEL,

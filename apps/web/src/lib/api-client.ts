@@ -31,6 +31,9 @@ import type {
   AIDraftResponse,
   AIPreheadersResponse,
   AIImproveResponse,
+  DeliveryProvidersResponse,
+  ProviderConnectionTestResponse,
+  SendTestEmailResponse,
 } from "@/types";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 
@@ -476,6 +479,7 @@ export const api = {
     targetListIds?: string[];
     targetTagIds?: string[];
     scheduledAt?: string | null;
+    provider?: string;
   }): Promise<Campaign> {
     return apiRequest<Campaign>("/api/campaigns", {
       method: "POST",
@@ -498,6 +502,7 @@ export const api = {
       targetTagIds: string[];
       scheduledAt: string | null;
       status: string;
+      provider: string;
     }>
   ): Promise<Campaign> {
     return apiRequest<Campaign>(`/api/campaigns/${id}`, {
@@ -871,6 +876,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+
+  // ==========================================
+  // Delivery Provider Settings
+  // ==========================================
+  async getDeliveryProviders(): Promise<DeliveryProvidersResponse> {
+    return apiRequest<DeliveryProvidersResponse>("/api/settings/providers");
+  },
+
+  async testProviderConnection(
+    provider: "RESEND" | "BREVO" | string
+  ): Promise<ProviderConnectionTestResponse> {
+    return apiRequest<ProviderConnectionTestResponse>(
+      `/api/settings/providers/${provider.toLowerCase()}/test-connection`,
+      { method: "POST" }
+    );
+  },
+
+  async sendProviderTestEmail(
+    provider: "RESEND" | "BREVO" | string,
+    to: string
+  ): Promise<SendTestEmailResponse> {
+    return apiRequest<SendTestEmailResponse>(
+      `/api/settings/providers/${provider.toLowerCase()}/send-test-email`,
+      {
+        method: "POST",
+        body: JSON.stringify({ to }),
+      }
+    );
+  },
+
+  async setDefaultDeliveryProvider(
+    provider: "RESEND" | "BREVO"
+  ): Promise<{ defaultEmailProvider: string }> {
+    return apiRequest<{ defaultEmailProvider: string }>(
+      "/api/settings/providers/default",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ provider }),
+      }
+    );
   },
 };
 

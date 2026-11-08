@@ -27,6 +27,7 @@ export interface Workspace {
   isOwner?: boolean;
   memberCount?: number;
   isActive?: boolean;
+  defaultEmailProvider?: "RESEND" | "BREVO" | string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -119,6 +120,7 @@ export interface Campaign {
   status: CampaignStatus;
   targetListIds?: string[];
   targetTagIds?: string[];
+  provider?: "RESEND" | "BREVO" | string;
   recipientCount: number;
   sentCount?: number;
   failedCount?: number;
@@ -559,4 +561,48 @@ export interface AIImproveResponse {
     suggestions: string[];
     spamWarnings: string[];
   };
+}
+
+// Delivery Provider Settings Types
+export interface DeliveryProviderInfo {
+  type: "RESEND" | "BREVO";
+  name: string;
+  configured: boolean;
+  isConfigured: boolean;
+  default: boolean;
+  isDefault: boolean;
+  senderEmail?: string;
+  senderName?: string;
+  supportsPersonalEmail: boolean;
+  supportsPersonalSender: boolean;
+  requiresCustomDomain: boolean;
+}
+
+export interface DeliveryProvidersResponse {
+  defaultProvider: "RESEND" | "BREVO";
+  providers: DeliveryProviderInfo[];
+}
+
+export interface ProviderConnectionTestResponse {
+  success: boolean;
+  ok: boolean;
+  message: string;
+  details?: {
+    success: boolean;
+    provider: string;
+    accountEmail?: string;
+    planType?: string;
+    credits?: number;
+    message: string;
+    testedAt: string;
+  };
+}
+
+export interface SendTestEmailResponse {
+  success: boolean;
+  ok?: boolean;
+  status?: string;
+  providerMessageId?: string;
+  message?: string;
+  error?: string;
 }

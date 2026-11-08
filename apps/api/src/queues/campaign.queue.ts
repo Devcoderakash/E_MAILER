@@ -1,5 +1,6 @@
 import { Queue, QueueEvents, Job } from "bullmq";
 import { redis } from "../config/redis";
+import { EmailProviderType } from "../providers/provider.types";
 
 export const CAMPAIGN_QUEUE_NAME = "mailpilot-campaign-queue";
 
@@ -10,6 +11,7 @@ export interface CampaignDispatchJobData {
   batchIndex: number;
   totalBatches: number;
   isTest?: boolean;
+  provider?: EmailProviderType;
 }
 
 export interface ScheduledCampaignJobData {

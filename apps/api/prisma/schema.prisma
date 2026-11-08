@@ -126,6 +126,7 @@ model Workspace {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  defaultEmailProvider String      @default("RESEND") @map("default_email_provider")
   members        WorkspaceMember[]
   activeUsers    User[]            @relation("UserActiveWorkspace")
   contacts       Contact[]
@@ -305,6 +306,7 @@ model Campaign {
   template          EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   htmlContent       String         @map("html_content") @db.Text
   status            CampaignStatus @default(DRAFT)
+  provider          String         @default("RESEND") @map("provider")
   targetListIds     String[]       @default([]) @map("target_list_ids")
   targetTagIds      String[]       @default([]) @map("target_tag_ids")
   recipientCount    Int            @default(0) @map("recipient_count")
@@ -352,6 +354,7 @@ model CampaignRecipient {
   openedAt          DateTime?               @map("opened_at")
   clickedAt         DateTime?               @map("clicked_at")
   bouncedAt         DateTime?               @map("bounced_at")
+  provider          String                  @default("RESEND") @map("provider")
   providerMessageId String?                 @map("provider_message_id")
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
