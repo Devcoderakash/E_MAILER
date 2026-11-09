@@ -87,7 +87,7 @@ export function WorkspaceSwitcher() {
               {currentWorkspaceName}
             </p>
             <p className="truncate text-[10px] text-slate-500 font-medium leading-tight capitalize">
-              {activeWorkspace?.role || "Member"} &bull; Cloud SaaS
+              {activeWorkspace?.role || "Owner"}
             </p>
           </div>
         </div>

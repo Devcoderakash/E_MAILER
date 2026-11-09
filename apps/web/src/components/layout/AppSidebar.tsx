@@ -7,13 +7,14 @@ import {
   BarChart2,
   Workflow,
   Settings,
-  Send,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useState } from "react";
+import Logo from "@/components/Logo";
+import { usePreferences } from "@/lib/preferences";
 
 interface NavItem {
   title: string;
@@ -39,30 +40,23 @@ interface AppSidebarProps {
 export function AppSidebar({ className, onCloseMobile }: AppSidebarProps) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { theme } = usePreferences();
 
   return (
     <aside
       className={cn(
-        "flex flex-col border-r border-slate-200/80 bg-white transition-all duration-200 ease-in-out select-none",
+        "flex flex-col border-r border-slate-200/80 bg-white dark:bg-slate-900 dark:border-slate-800 transition-all duration-200 ease-in-out select-none",
         isCollapsed ? "w-16" : "w-60",
         className
       )}
     >
       {/* Brand Header */}
-      <div className="flex h-16 shrink-0 items-center justify-between px-4 border-b border-slate-200/80">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
-            <Send className="h-4 w-4" />
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold tracking-tight text-slate-900 leading-none">
-                MailPilot
-              </span>
-              <span className="text-[10px] font-medium text-slate-400 mt-0.5">
-                Email Platform
-              </span>
-            </div>
+      <div className="flex h-16 shrink-0 items-center justify-between px-4 border-b border-slate-200/80 dark:border-slate-800">
+        <div className="flex items-center min-w-0">
+          {isCollapsed ? (
+            <Logo variant="icon" size={28} theme={theme} />
+          ) : (
+            <Logo size={28} theme={theme} />
           )}
         </div>
 

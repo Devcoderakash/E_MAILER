@@ -1,5 +1,6 @@
 import { prisma } from "../../config/database";
 import { TemplateCategory, TemplateStatus } from "@prisma/client";
+import { env } from "../../config/env";
 
 export interface PaginationParams {
   page?: number;
@@ -56,6 +57,7 @@ export const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
   <div style="background-color: #f8fafc; padding: 40px 12px;">
     <div class="container">
       <div class="header">
+        <img src="${(env.PUBLIC_BASE_URL || "https://e-mailer-00sp.onrender.com").replace(/\/+$/, "")}/logo-512.png" alt="MailPilot" width="32" height="32" style="display: block; margin: 0 auto 12px; border-radius: 6px; border: 0;" />
         <h1>Welcome to MailPilot, {{first_name}}!</h1>
       </div>
       <div class="content">

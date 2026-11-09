@@ -377,8 +377,12 @@ export class GmailSmtpProvider {
 
     // Auto-append compliant unsubscribe footer if URL provided and not already linked
     if (options.unsubscribeUrl && !finalHtml.includes(options.unsubscribeUrl)) {
+      const publicBaseUrl = (env.PUBLIC_BASE_URL || "https://e-mailer-00sp.onrender.com").replace(/\/+$/, "");
       finalHtml += `
 <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <div style="margin-bottom: 8px;">
+    <img src="${publicBaseUrl}/logo-512.png" alt="MailPilot" width="32" height="32" style="display: inline-block; vertical-align: middle; border-radius: 6px; border: 0;" />
+  </div>
   You are receiving this communication from ${sanitizedDisplayName}.<br />
   <a href="${options.unsubscribeUrl}" style="color: #64748b; text-decoration: underline;">Unsubscribe</a> from future broadcast emails.
 </div>`;

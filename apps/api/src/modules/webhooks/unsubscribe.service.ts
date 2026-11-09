@@ -338,6 +338,7 @@ export class UnsubscribeService {
    * Render HTML for GET unsubscribe confirmation page
    */
   public static renderSuccessPage(maskedEmail: string, alreadyUnsubscribed: boolean): string {
+    const publicBaseUrl = (env.PUBLIC_BASE_URL || "https://e-mailer-00sp.onrender.com").replace(/\/+$/, "");
     const title = alreadyUnsubscribed ? "Already Unsubscribed" : "You have been unsubscribed";
     const message = alreadyUnsubscribed
       ? "You were already unsubscribed from broadcast emails from this sender."
@@ -422,6 +423,9 @@ export class UnsubscribeService {
 </head>
 <body>
   <div class="card">
+    <div style="text-align: center; margin-bottom: 16px;">
+      <img src="${publicBaseUrl}/logo-512.png" alt="MailPilot" width="32" height="32" style="border-radius: 6px; vertical-align: middle; display: inline-block;" />
+    </div>
     <div class="icon-container">
       <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
@@ -442,6 +446,7 @@ export class UnsubscribeService {
    * Render HTML for GET unsubscribe error page
    */
   public static renderErrorPage(errorMessage: string): string {
+    const publicBaseUrl = (env.PUBLIC_BASE_URL || "https://e-mailer-00sp.onrender.com").replace(/\/+$/, "");
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -510,6 +515,9 @@ export class UnsubscribeService {
 </head>
 <body>
   <div class="card">
+    <div style="text-align: center; margin-bottom: 16px;">
+      <img src="${publicBaseUrl}/logo-512.png" alt="MailPilot" width="32" height="32" style="border-radius: 6px; vertical-align: middle; display: inline-block;" />
+    </div>
     <div class="icon-container">
       <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>

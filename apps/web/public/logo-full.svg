@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 64" width="230" height="64" role="img" aria-label="MailPilot" font-family="Inter, -apple-system, 'Segoe UI', Arial, sans-serif">
+  <g>
+    <path d="M14 4H38L60 26V50A10 10 0 0 1 50 60H14A10 10 0 0 1 4 50V14A10 10 0 0 1 14 4Z" fill="#4F46E5"/>
+    <path d="M38 4V16A10 10 0 0 0 48 26H60Z" fill="#818CF8"/>
+    <path d="M15 34L32 46L49 34" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="76" y="44" font-size="32" font-weight="700" letter-spacing="-1"><tspan fill="#111827">Mail</tspan><tspan fill="#4F46E5">Pilot</tspan></text>
+</svg>
+

@@ -1,6 +1,7 @@
 import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAuthStore } from "../use-auth-store";
-import { Send, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import Logo from "@/components/Logo";
 
 interface PublicOnlyRouteProps {
   children?: React.ReactNode;
@@ -13,10 +14,10 @@ export function PublicOnlyRoute({ children }: PublicOnlyRouteProps) {
   if (isLoading) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-900">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 mb-4 animate-pulse">
-          <Send className="h-6 w-6" />
+        <div className="mb-4">
+          <Logo variant="icon" size={40} />
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 tracking-wider uppercase">
+        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
           <span>Loading...</span>
         </div>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Send } from "lucide-react";
+import Logo from "@/components/Logo";
 
 interface AuthLayoutProps {
   icon: React.ReactNode;
@@ -22,15 +22,10 @@ export function AuthLayout({
       {/* MailPilot Logo Fixed at Top-Left */}
       <Link
         to="/"
-        className="fixed top-6 left-6 z-30 flex items-center gap-2.5 transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded-xl"
+        className="fixed top-6 left-6 z-30 flex items-center transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded-xl"
         aria-label="MailPilot Home"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/25">
-          <Send className="h-4 w-4" />
-        </div>
-        <span className="text-lg font-bold tracking-tight text-slate-900">
-          MailPilot
-        </span>
+        <Logo size={36} />
       </Link>
 
       {/* Decorative Concentric Arcs behind the card */}
@@ -133,3 +128,4 @@ export function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
     </svg>
   );
 }
+

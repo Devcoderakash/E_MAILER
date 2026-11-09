@@ -15,7 +15,9 @@
     "test:queue": "pnpm --filter @mailpilot/api test:queue"
   },
   "devDependencies": {
+    "@types/sharp": "^0.32.0",
     "concurrently": "^9.1.2",
+    "sharp": "^0.35.5",
     "typescript": "^5.8.2"
   },
   "engines": {
