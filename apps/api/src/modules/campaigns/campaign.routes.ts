@@ -14,6 +14,8 @@ campaignRouter.patch("/:id", CampaignController.update);
 campaignRouter.delete("/:id", CampaignController.delete);
 
 // Operations
+campaignRouter.post("/test-email", CampaignController.sendTestEmail);
+campaignRouter.post("/:id/test-email", CampaignController.sendTestEmail);
 campaignRouter.post("/:id/duplicate", CampaignController.duplicate);
 campaignRouter.post("/:id/validate", CampaignController.validate);
 campaignRouter.post("/:id/send", CampaignController.send);

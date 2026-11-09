@@ -13,6 +13,7 @@ import { CampaignService } from "../modules/campaigns/campaign.service";
 import { GoogleCalendarService } from "../modules/schedules/google-calendar.service";
 import { GmailQuotaService } from "../modules/providers/gmail-quota.service";
 import { UnsubscribeService } from "../modules/webhooks/unsubscribe.service";
+import { TrackingService } from "../modules/tracking/tracking.service";
 import { env } from "../config/env";
 import {
   CampaignStatus,
@@ -278,6 +279,9 @@ export function createCampaignWorker() {
           unsubscribe_url: unsubscribeUrl,
         });
 
+        // Inject 1x1 transparent tracking pixel and link redirect tracking
+        const trackableHtml = TrackingService.injectTracking(personalizedHtml, recipient.id);
+
         // Gradual sending delay: Add a human-like delay between recipient dispatches
         // to avoid Google SMTP burst filters (skipped in automated tests)
         const isSimulation = GmailSmtpProvider.isTestModeEnabled() || (job.data as CampaignDispatchJobData).isTest;
@@ -285,7 +289,7 @@ export function createCampaignWorker() {
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
-        // Dispatch email via Gmail SMTP (tracking handled via database & application logs)
+        // Dispatch email via Gmail SMTP
         const sendResult = await GmailSmtpProvider.send(
           {
             to: recipient.email,
@@ -293,7 +297,7 @@ export function createCampaignWorker() {
             fromEmail: campaign.fromEmail,
             replyTo: campaign.replyTo,
             subject: personalizedSubject,
-            html: personalizedHtml,
+            html: trackableHtml,
             preheader: campaign.preheader,
             workspaceId: campaign.workspaceId,
             unsubscribeUrl,

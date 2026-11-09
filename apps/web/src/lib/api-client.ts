@@ -539,6 +539,22 @@ export const api = {
     });
   },
 
+  async sendCampaignTestEmail(data: {
+    campaignId?: string;
+    subject?: string;
+    htmlContent?: string;
+    fromName?: string;
+    targetEmail?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const endpoint = data.campaignId
+      ? `/api/campaigns/${data.campaignId}/test-email`
+      : `/api/campaigns/test-email`;
+    return apiRequest(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   async cancelCampaign(id: string): Promise<Campaign> {
     return apiRequest<Campaign>(`/api/campaigns/${id}/cancel`, {
       method: "POST",

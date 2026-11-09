@@ -122,26 +122,26 @@ export class UnsubscribeService {
    * Resolves the canonical public API base URL
    */
   public static getPublicApiBaseUrl(): string {
-    const configured = env.PUBLIC_API_URL?.trim();
-    if (configured) {
-      const clean = configured.replace(/\/+$/, "");
-      if (env.NODE_ENV === "production") {
-        if (!clean.startsWith("https://") || clean.includes("localhost") || clean.includes("127.0.0.1")) {
-          throw new Error(
-            `PUBLIC_API_URL must be a valid public HTTPS URL in production (got: ${clean}).`
-          );
-        }
-      }
-      return clean;
+    const configured = (
+      process.env.PUBLIC_BASE_URL ||
+      env.PUBLIC_BASE_URL ||
+      process.env.PUBLIC_API_URL ||
+      env.PUBLIC_API_URL ||
+      "https://e-mailer-00sp.onrender.com"
+    ).trim();
+
+    const clean = configured.replace(/\/+$/, "");
+
+    // Guard: Public unsubscribe links sent in emails must never point to localhost
+    if (
+      clean.includes("localhost") ||
+      clean.includes("127.0.0.1") ||
+      clean.includes("::1")
+    ) {
+      return "https://e-mailer-00sp.onrender.com";
     }
 
-    if (env.NODE_ENV === "production") {
-      throw new Error(
-        "PUBLIC_API_URL environment variable is required in production for RFC-compliant unsubscribe links and headers."
-      );
-    }
-
-    return `http://localhost:${env.PORT}`;
+    return clean;
   }
 
   /**

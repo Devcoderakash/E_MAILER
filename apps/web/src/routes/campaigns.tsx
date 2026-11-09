@@ -36,6 +36,43 @@ import { useAuthStore } from "@/features/auth/use-auth-store";
 import { STARTER_TEMPLATES, getStarterHTML } from "@/features/templates/sample-templates";
 import { TemplatesPage } from "./templates";
 
+/**
+ * Client-side merge tag interpolation with fallback support (e.g. {{first_name|there}})
+ */
+function interpolatePreview(
+  template: string,
+  data: { firstName?: string; lastName?: string; company?: string; email?: string }
+): string {
+  if (!template) return "";
+  const lookup: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v != null) {
+      lookup[k.toLowerCase()] = String(v);
+      lookup[k.toLowerCase().replace(/[-_]/g, "")] = String(v);
+    }
+  }
+  if (data.firstName) {
+    lookup["first_name"] = data.firstName;
+    lookup["firstname"] = data.firstName;
+  }
+  if (data.lastName) {
+    lookup["last_name"] = data.lastName;
+    lookup["lastname"] = data.lastName;
+  }
+
+  return template.replace(
+    /\{\{\s*([a-zA-Z0-9_]+)(?:\s*\|\s*([^}]+))?\s*\}\}/g,
+    (_match, rawKey, fallback) => {
+      const norm = rawKey.toLowerCase();
+      const stripped = norm.replace(/[-_]/g, "");
+      const val = lookup[norm] ?? lookup[stripped];
+      if (val && val.trim() !== "") return val;
+      if (fallback !== undefined) return fallback.trim();
+      return "";
+    }
+  );
+}
+
 export function CampaignsPage() {
   const queryClient = useQueryClient();
   const { activeWorkspace, profile, user } = useAuthStore();
@@ -157,6 +194,28 @@ export function CampaignsPage() {
     enabled: !!activeWorkspace?.id,
   });
 
+  // Fetch real contact data for live merge tag preview
+  const sampleContactQuery = useQuery({
+    queryKey: ["sample-contact", activeWorkspace?.id],
+    queryFn: () => api.getContacts({ page: 1, limit: 1 }),
+    enabled: isWizardOpen && !!activeWorkspace?.id,
+  });
+
+  const sampleContact = sampleContactQuery.data?.contacts?.[0];
+  const sampleData = {
+    firstName: sampleContact?.firstName || "Alex",
+    lastName: sampleContact?.lastName || "Taylor",
+    company: sampleContact?.company || "Acme Corp",
+    email: sampleContact?.email || user?.email || "alex@example.com",
+  };
+
+  // Recipient delivery logs for campaign details
+  const campaignRecipientsQuery = useQuery({
+    queryKey: ["campaign-recipients", detailsCampaign?.id],
+    queryFn: () => api.getCampaignRecipients(detailsCampaign!.id, { limit: 50 }),
+    enabled: !!detailsCampaign?.id,
+  });
+
   const campaigns = campaignsData?.items || [];
   const pagination = campaignsData?.pagination;
 
@@ -260,12 +319,13 @@ export function CampaignsPage() {
     setIsWizardOpen(true);
   };
 
-  // Test email sending in step 4
+  // Test email sending in step 4 (sends directly to logged-in user)
   const handleSendTestEmail = async () => {
-    if (!testEmailAddress.trim()) {
+    const targetEmail = (user?.email || profile?.email || testEmailAddress).trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
       setTestEmailFeedback({
         success: false,
-        text: "Please enter an email address to send the test email to.",
+        text: "Please sign in or enter a valid email address.",
       });
       return;
     }
@@ -273,26 +333,32 @@ export function CampaignsPage() {
     setIsSendingTest(true);
     setTestEmailFeedback(null);
     try {
-      const res = await api.sendSmtpTestEmail({
-        to: testEmailAddress.trim(),
-        senderName: formFromName || "MailPilot",
+      const res = await api.sendCampaignTestEmail({
+        subject: formSubject || "Test Preview",
+        htmlContent: formHtmlContent || "<p>Hello from MailPilot!</p>",
+        fromName: formFromName || "MailPilot",
+        targetEmail,
       });
 
       if (res.success) {
         setTestEmailFeedback({
           success: true,
-          text: `Test email sent to ${testEmailAddress}! Check your inbox.`,
+          text: `Test email sent to ${targetEmail}! Check your inbox.`,
+        });
+        setToastMessage({
+          type: "success",
+          text: `Test email sent to ${targetEmail}`,
         });
       } else {
         setTestEmailFeedback({
           success: false,
-          text: res.error || "Failed to deliver test email.",
+          text: "Could not send test email. Please check your Gmail connection in Settings.",
         });
       }
     } catch (err: any) {
       setTestEmailFeedback({
         success: false,
-        text: err.message || "Failed to dispatch test email.",
+        text: err.message || "Could not send test email. Please check your Gmail connection in Settings.",
       });
     } finally {
       setIsSendingTest(false);
@@ -508,6 +574,16 @@ export function CampaignsPage() {
                     ? (((camp.openedCount ?? 0) / (camp.sentCount ?? 1)) * 100).toFixed(1)
                     : null;
 
+                const isPartiallySent =
+                  (camp.status === "SENT" || camp.status === "FAILED") &&
+                  (camp.sentCount ?? 0) > 0 &&
+                  (camp.recipientCount ?? 0) > (camp.sentCount ?? 0);
+
+                const displayStatus = isPartiallySent ? "partially_sent" : camp.status;
+                const displayLabel = isPartiallySent
+                  ? `Partially sent (${camp.sentCount} of ${camp.recipientCount} sent)`
+                  : undefined;
+
                 return (
                   <div
                     key={camp.id}
@@ -525,7 +601,7 @@ export function CampaignsPage() {
                         </div>
                       </div>
                       <div className="shrink-0">
-                        <StatusBadge status={camp.status} />
+                        <StatusBadge status={displayStatus} label={displayLabel} />
                       </div>
                     </div>
 
@@ -635,6 +711,16 @@ export function CampaignsPage() {
                         ? (((camp.openedCount ?? 0) / (camp.sentCount ?? 1)) * 100).toFixed(1)
                         : null;
 
+                    const isPartiallySent =
+                      (camp.status === "SENT" || camp.status === "FAILED") &&
+                      (camp.sentCount ?? 0) > 0 &&
+                      (camp.recipientCount ?? 0) > (camp.sentCount ?? 0);
+
+                    const displayStatus = isPartiallySent ? "partially_sent" : camp.status;
+                    const displayLabel = isPartiallySent
+                      ? `Partially sent (${camp.sentCount} of ${camp.recipientCount} sent)`
+                      : undefined;
+
                     return (
                       <tr
                         key={camp.id}
@@ -646,7 +732,7 @@ export function CampaignsPage() {
                           <div className="text-xs text-slate-500 truncate max-w-xs">{camp.subject}</div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <StatusBadge status={camp.status} />
+                          <StatusBadge status={displayStatus} label={displayLabel} />
                         </td>
                         <td className="py-3.5 px-4 text-xs text-slate-600">
                           <span className="font-medium">
@@ -1254,44 +1340,90 @@ export function CampaignsPage() {
                     </div>
                   </div>
 
-                  {/* Test Email Verification Box */}
-                  <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-indigo-600" />
-                      <h4 className="text-xs font-bold text-indigo-950">
-                        Send a Test Email to Yourself
-                      </h4>
+                  {/* Email Preview with Real Contact Data */}
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-slate-700">Email Preview</span>
+                      <span className="text-[11px] text-slate-500">
+                        Filled in for contact:{" "}
+                        <strong className="text-slate-800">
+                          {sampleData.firstName} {sampleData.lastName}
+                        </strong>{" "}
+                        ({sampleData.company || "No company"})
+                      </span>
                     </div>
-                    <p className="text-[11px] text-indigo-700">
-                      Verify how this email appears in your inbox before broadcasting to subscribers.
-                    </p>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="email"
-                        value={testEmailAddress}
-                        onChange={(e) => setTestEmailAddress(e.target.value)}
-                        placeholder="your-email@example.com"
-                        className="flex-1 text-xs rounded-lg border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:border-indigo-600"
+                    <div className="p-4 space-y-3 text-xs">
+                      <div className="space-y-1 pb-3 border-b border-slate-100">
+                        <div className="text-slate-800 font-medium">
+                          <span className="text-slate-400 font-normal">Subject: </span>
+                          {interpolatePreview(formSubject || "Untitled Subject", sampleData)}
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          <span>From: </span>
+                          <strong className="text-slate-700">{formFromName || "MailPilot"}</strong>
+                          {" • "}
+                          <span>To: </span>
+                          <span className="text-slate-700 font-mono text-[10px]">
+                            {sampleData.firstName} &lt;{sampleData.email}&gt;
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Rendered HTML content with personalized data */}
+                      <div
+                        className="prose prose-xs max-w-none text-slate-800 min-h-[140px] max-h-[300px] overflow-y-auto bg-slate-50/50 p-4 rounded-lg border border-slate-100"
+                        dangerouslySetInnerHTML={{
+                          __html: interpolatePreview(
+                            formHtmlContent || "<p>Email content goes here...</p>",
+                            sampleData
+                          ),
+                        }}
                       />
+
+                      {/* Compliant Unsubscribe Link Preview */}
+                      <div className="text-[11px] text-slate-400 text-center pt-2 border-t border-slate-100">
+                        <span className="underline cursor-default">Unsubscribe</span> • Sent with MailPilot
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Send Test Email to Logged-in User */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">Send test email</h4>
+                        <p className="text-[11px] text-slate-500">
+                          Sends a real test email to your account (
+                          <strong className="text-slate-700">
+                            {user?.email || profile?.email || "your email"}
+                          </strong>
+                          ).
+                        </p>
+                      </div>
+
                       <Button
                         type="button"
                         size="sm"
                         onClick={handleSendTestEmail}
                         disabled={isSendingTest}
-                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium shrink-0"
                       >
-                        {isSendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                        Send Test
+                        {isSendingTest ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <Mail className="h-3.5 w-3.5 mr-1.5" />
+                        )}
+                        Send test email
                       </Button>
                     </div>
 
                     {testEmailFeedback && (
                       <div
-                        className={`text-[11px] p-2 rounded-lg font-medium ${
+                        className={`text-xs p-2.5 rounded-lg font-medium ${
                           testEmailFeedback.success
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-rose-100 text-rose-800"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
                         }`}
                       >
                         {testEmailFeedback.text}
@@ -1357,12 +1489,16 @@ export function CampaignsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-5 space-y-4">
             <h3 className="text-sm font-bold text-slate-900">
-              Ready to launch your campaign?
+              {sendTimingMode === "now" ? "Send Campaign" : "Schedule Campaign"}
             </h3>
             <p className="text-xs text-slate-600">
               {sendTimingMode === "now"
-                ? `You are about to dispatch "${formName}" to your audience. This will send via your Gmail SMTP gateway with human-paced delivery.`
-                : `You are about to schedule "${formName}" for ${new Date(scheduledDateTime).toLocaleString()}.`}
+                ? `You are about to send "${formName || "Untitled Campaign"}" to ${
+                    formAudienceType === "all"
+                      ? `${(contactStatsQuery.data?.active ?? 0)} ${(contactStatsQuery.data?.active ?? 0) === 1 ? "contact" : "contacts"}`
+                      : "the selected contacts"
+                  }. Send now?`
+                : `You are about to schedule "${formName || "Untitled Campaign"}" for ${new Date(scheduledDateTime).toLocaleString()}.`}
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -1372,14 +1508,14 @@ export function CampaignsPage() {
                 onClick={() => setShowWizardConfirmSend(false)}
                 className="text-xs border-slate-200"
               >
-                Go Back
+                Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleConfirmedSend}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
               >
-                Yes, Launch Campaign
+                {sendTimingMode === "now" ? "Send now" : "Confirm Schedule"}
               </Button>
             </div>
           </div>
@@ -1392,7 +1528,7 @@ export function CampaignsPage() {
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 space-y-4">
             <h3 className="text-sm font-bold text-slate-900">Send Campaign</h3>
             <p className="text-xs text-slate-600">
-              Are you sure you want to dispatch "{campaignToSend.name}" to its recipients? This will send via your Gmail SMTP gateway.
+              You are about to send "{campaignToSend.name}" to {campaignToSend.recipientCount ?? 0} {(campaignToSend.recipientCount ?? 0) === 1 ? "contact" : "contacts"}. Send now?
             </p>
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button
@@ -1409,7 +1545,7 @@ export function CampaignsPage() {
                 disabled={sendCampaignMutation.isPending}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
               >
-                {sendCampaignMutation.isPending ? "Sending..." : "Send Now"}
+                {sendCampaignMutation.isPending ? "Sending..." : "Send now"}
               </Button>
             </div>
           </div>
@@ -1451,88 +1587,161 @@ export function CampaignsPage() {
       )}
 
       {/* Campaign Details Drawer */}
-      {detailsCampaign && (
-        <div
-          className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs"
-          onClick={() => setDetailsCampaign(null)}
-        >
+      {detailsCampaign && (() => {
+        const detailsIsPartiallySent =
+          (detailsCampaign.status === "SENT" || detailsCampaign.status === "FAILED") &&
+          (detailsCampaign.sentCount ?? 0) > 0 &&
+          (detailsCampaign.recipientCount ?? 0) > (detailsCampaign.sentCount ?? 0);
+
+        const detailsDisplayStatus = detailsIsPartiallySent ? "partially_sent" : detailsCampaign.status;
+        const detailsDisplayLabel = detailsIsPartiallySent
+          ? `Partially sent (${detailsCampaign.sentCount} of ${detailsCampaign.recipientCount} sent)`
+          : undefined;
+
+        return (
           <div
-            className="w-full max-w-md bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col p-5 sm:p-6 space-y-5 animate-in slide-in-from-right duration-200"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs"
+            onClick={() => setDetailsCampaign(null)}
           >
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">{detailsCampaign.name}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{detailsCampaign.subject}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailsCampaign(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-                aria-label="Close details"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Status</span>
-                <StatusBadge status={detailsCampaign.status} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Audience</span>
-                <span className="font-semibold text-slate-800">
-                  {(detailsCampaign.recipientCount ?? 0).toLocaleString()} recipients
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Sent Count</span>
-                <span className="font-semibold text-slate-800">
-                  {(detailsCampaign.sentCount ?? 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Unique Opens</span>
-                <span className="font-semibold text-emerald-600">
-                  {(detailsCampaign.openedCount ?? 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Link Clicks</span>
-                <span className="font-semibold text-indigo-600">
-                  {(detailsCampaign.clickedCount ?? 0).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
-              {detailsCampaign.status === "FAILED" && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const toSend = detailsCampaign;
-                    setDetailsCampaign(null);
-                    setCampaignToSend(toSend);
-                  }}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            <div
+              className="w-full max-w-md bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col p-5 sm:p-6 space-y-5 animate-in slide-in-from-right duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">{detailsCampaign.name}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{detailsCampaign.subject}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailsCampaign(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                  aria-label="Close details"
                 >
-                  <Play className="h-3.5 w-3.5 mr-1" />
-                  Retry Campaign
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Status</span>
+                  <StatusBadge status={detailsDisplayStatus} label={detailsDisplayLabel} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Audience</span>
+                  <span className="font-semibold text-slate-800">
+                    {(detailsCampaign.recipientCount ?? 0).toLocaleString()} recipients
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Sent Count</span>
+                  <span className="font-semibold text-slate-800">
+                    {(detailsCampaign.sentCount ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Unique Opens</span>
+                  <span className="font-semibold text-emerald-600">
+                    {(detailsCampaign.openedCount ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Link Clicks</span>
+                  <span className="font-semibold text-indigo-600">
+                    {(detailsCampaign.clickedCount ?? 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recipient Delivery Breakdown & Failure Details */}
+              <div className="pt-3 border-t border-slate-100 flex-1 min-h-0 flex flex-col space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-800">Recipients & Delivery Status</span>
+                  <span className="text-[11px] text-slate-400">
+                    {campaignRecipientsQuery.data?.pagination?.total ?? 0} total
+                  </span>
+                </div>
+
+                {campaignRecipientsQuery.isLoading ? (
+                  <div className="text-xs text-slate-400 py-4 text-center">Loading recipient logs...</div>
+                ) : (campaignRecipientsQuery.data?.items?.length ?? 0) === 0 ? (
+                  <div className="text-xs text-slate-400 py-4 text-center">No recipient logs recorded yet.</div>
+                ) : (
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 max-h-56">
+                    {campaignRecipientsQuery.data?.items.map((r) => (
+                      <div key={r.id} className="pt-2 flex items-start justify-between text-xs gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-slate-800 truncate">{r.email}</div>
+                          {r.errorMessage ? (
+                            <div className="text-rose-600 text-[11px] mt-0.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 break-words">
+                              {r.errorMessage}
+                            </div>
+                          ) : r.status === "SENT" ? (
+                            <div className="text-slate-400 text-[10px] mt-0.5">
+                              Delivered successfully
+                            </div>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={r.status} className="shrink-0 text-[10px]" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await api.sendCampaignTestEmail({
+                        campaignId: detailsCampaign.id,
+                        targetEmail: user?.email,
+                      });
+                      setToastMessage({
+                        type: "success",
+                        text: `Test email sent to ${user?.email}`,
+                      });
+                    } catch (err: any) {
+                      setToastMessage({
+                        type: "error",
+                        text: err.message || "Could not send test email.",
+                      });
+                    }
+                  }}
+                  className="text-xs border-slate-200"
+                >
+                  <Mail className="h-3.5 w-3.5 mr-1" />
+                  Send test email
                 </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDetailsCampaign(null)}
-                className="text-xs border-slate-200"
-              >
-                Close
-              </Button>
+                {detailsCampaign.status === "FAILED" && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const toSend = detailsCampaign;
+                      setDetailsCampaign(null);
+                      setCampaignToSend(toSend);
+                    }}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Play className="h-3.5 w-3.5 mr-1" />
+                    Retry Campaign
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDetailsCampaign(null)}
+                  className="text-xs border-slate-200"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Templates Drawer / Modal */}
       {isTemplatesModalOpen && (

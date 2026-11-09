@@ -34,6 +34,20 @@ const statusConfig: Record<
     border: "border-emerald-200/80",
     dot: "bg-emerald-500",
   },
+  partially_sent: {
+    label: "Partially sent",
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200/80",
+    dot: "bg-amber-500",
+  },
+  "partially sent": {
+    label: "Partially sent",
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200/80",
+    dot: "bg-amber-500",
+  },
   healthy: {
     label: "Healthy",
     bg: "bg-emerald-50",

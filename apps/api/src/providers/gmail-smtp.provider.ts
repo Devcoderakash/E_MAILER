@@ -375,12 +375,8 @@ export class GmailSmtpProvider {
     // Process HTML & Unsubscribe Link
     let finalHtml = options.html;
 
-    // Auto-append compliant unsubscribe footer if URL provided and not present
-    if (
-      options.unsubscribeUrl &&
-      !finalHtml.toLowerCase().includes("unsubscribe") &&
-      !finalHtml.toLowerCase().includes("{{unsubscribe_url}}")
-    ) {
+    // Auto-append compliant unsubscribe footer if URL provided and not already linked
+    if (options.unsubscribeUrl && !finalHtml.includes(options.unsubscribeUrl)) {
       finalHtml += `
 <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
   You are receiving this communication from ${sanitizedDisplayName}.<br />
@@ -605,7 +601,8 @@ export class GmailSmtpProvider {
   }
 
   /**
-   * Interpolate merge tags (e.g. {{firstName}}, {{email}}) in email subjects or HTML bodies
+   * Interpolate merge tags (e.g. {{first_name}}, {{company|there}}) in email subjects or HTML bodies
+   * Supports camelCase, snake_case, and fallback values like {{first_name|there}}.
    */
   public static interpolateMergeTags(
     template: string,
@@ -615,17 +612,58 @@ export class GmailSmtpProvider {
       email?: string | null;
       company?: string | null;
       subject?: string | null;
+      unsubscribe_url?: string | null;
+      unsubscribeUrl?: string | null;
       [key: string]: string | null | undefined;
     }
   ): string {
     if (!template) return "";
 
-    return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, tagKey) => {
-      const val = tags[tagKey];
-      if (val !== undefined && val !== null) {
-        return String(val);
+    // Normalize incoming tags into lookup map supporting camelCase and snake_case
+    const lookup: Record<string, string> = {};
+    for (const [key, value] of Object.entries(tags)) {
+      if (value !== undefined && value !== null) {
+        const strVal = String(value);
+        lookup[key.toLowerCase()] = strVal;
+        lookup[key.toLowerCase().replace(/[-_]/g, "")] = strVal;
       }
-      return "";
-    });
+    }
+
+    // Common aliases
+    if (tags.firstName) {
+      lookup["first_name"] = tags.firstName;
+      lookup["firstname"] = tags.firstName;
+    }
+    if (tags.lastName) {
+      lookup["last_name"] = tags.lastName;
+      lookup["lastname"] = tags.lastName;
+    }
+    if (tags.unsubscribe_url || tags.unsubscribeUrl) {
+      const u = tags.unsubscribe_url || tags.unsubscribeUrl || "";
+      lookup["unsubscribe_url"] = u;
+      lookup["unsubscribeurl"] = u;
+    }
+
+    // Match {{tag}} or {{tag | fallback}}
+    return template.replace(
+      /\{\{\s*([a-zA-Z0-9_]+)(?:\s*\|\s*([^}]+))?\s*\}\}/g,
+      (_match, rawKey, fallback) => {
+        const normalizedKey = rawKey.toLowerCase();
+        const strippedKey = normalizedKey.replace(/[-_]/g, "");
+
+        const value = lookup[normalizedKey] ?? lookup[strippedKey];
+        if (value !== undefined && value.trim() !== "") {
+          return value;
+        }
+
+        // Fallback provided? e.g. {{first_name|there}}
+        if (fallback !== undefined) {
+          return fallback.trim();
+        }
+
+        // Missing and no fallback: return empty string instead of raw {{...}}
+        return "";
+      }
+    );
   }
 }

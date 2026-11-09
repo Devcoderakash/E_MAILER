@@ -11,6 +11,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   FRONTEND_URL: z.string().default("http://localhost:5173"),
   PUBLIC_API_URL: z.string().optional(),
+  PUBLIC_BASE_URL: z.string().default("https://e-mailer-00sp.onrender.com"),
 
   // Database (Supabase PostgreSQL via Prisma)
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -50,6 +51,14 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 function normalizeEnv(): void {
+  if (!process.env.PUBLIC_BASE_URL) {
+    process.env.PUBLIC_BASE_URL =
+      process.env.RENDER_EXTERNAL_URL ||
+      process.env.PUBLIC_API_URL ||
+      process.env.API_URL ||
+      process.env.BASE_URL ||
+      "https://e-mailer-00sp.onrender.com";
+  }
   if (!process.env.PUBLIC_API_URL && process.env.API_URL) {
     process.env.PUBLIC_API_URL = process.env.API_URL;
   }
@@ -102,6 +111,7 @@ function validateEnv(): Env {
       PORT: Number(process.env.PORT) || 4000,
       FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
       PUBLIC_API_URL: process.env.PUBLIC_API_URL || process.env.API_URL,
+      PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL || "https://e-mailer-00sp.onrender.com",
       DATABASE_URL: process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/mailpilot",
       DIRECT_URL: process.env.DIRECT_URL,
       SUPABASE_URL: process.env.SUPABASE_URL || "https://placeholder-project.supabase.co",

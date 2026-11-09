@@ -273,4 +273,31 @@ export class CampaignController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/campaigns/test-email or POST /api/campaigns/:id/test-email
+   * Send a test email to the authenticated user
+   */
+  static async sendTestEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { workspaceId } = await CampaignController.getWorkspace(req);
+      const userEmail = req.user?.email || "";
+
+      const result = await CampaignService.sendTestEmail(workspaceId, userEmail, {
+        campaignId: req.params.id,
+        subject: req.body.subject,
+        htmlContent: req.body.htmlContent,
+        fromName: req.body.fromName,
+        targetEmail: req.body.targetEmail || userEmail,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: result.message,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

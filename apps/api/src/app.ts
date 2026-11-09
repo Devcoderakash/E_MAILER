@@ -22,6 +22,7 @@ import {
   automationRouter,
   aiRouter,
   settingsRouter,
+  trackingRouter,
 } from "./modules";
 
 export function createApp(): Application {
@@ -141,6 +142,10 @@ export function createApp(): Application {
   // Settings & Google Integrations Routes
   app.use("/api/settings", settingsRouter);
 
+  // Email Open & Click Tracking Routes (Public)
+  app.use("/api/track", trackingRouter);
+  app.use("/track", trackingRouter);
+
   // Static Assets & Single Page Application (SPA) Serving for Production Deployment
   const possibleDistPaths = [
     path.resolve(__dirname, "../../web/dist"),
@@ -153,7 +158,11 @@ export function createApp(): Application {
     app.use(express.static(webDistPath));
 
     app.get("*", (req: Request, res: Response, next: NextFunction) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/health")) {
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/track") ||
+        req.path.startsWith("/health")
+      ) {
         return next();
       }
       res.sendFile(path.join(webDistPath, "index.html"));

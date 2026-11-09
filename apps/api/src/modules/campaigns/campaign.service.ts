@@ -902,4 +902,100 @@ export class CampaignService {
       durationSeconds,
     };
   }
+
+  /**
+   * Send a test email of a campaign directly to the logged-in user with real sample contact interpolation
+   */
+  static async sendTestEmail(
+    workspaceId: string,
+    userEmail: string,
+    data: {
+      campaignId?: string;
+      subject?: string;
+      htmlContent?: string;
+      fromName?: string;
+      targetEmail?: string;
+    }
+  ) {
+    let subject = data.subject || "";
+    let htmlContent = data.htmlContent || "";
+    let fromName = data.fromName || "MailPilot";
+    let fromEmail = "notifications@mailpilot.io";
+
+    if (data.campaignId) {
+      const camp = await this.getCampaignById(workspaceId, data.campaignId);
+      subject = subject || camp.subject;
+      htmlContent = htmlContent || camp.htmlContent;
+      fromName = fromName || camp.fromName;
+      fromEmail = camp.fromEmail;
+    }
+
+    const destinationEmail = (data.targetEmail || userEmail).trim();
+    if (!destinationEmail || !destinationEmail.includes("@")) {
+      const err: any = new Error("Invalid destination email for test dispatch.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Pick a real sample contact from workspace for personalization demonstration
+    const sampleContact = await prisma.contact.findFirst({
+      where: { workspaceId, status: ContactStatus.ACTIVE },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const mergeTags = {
+      firstName: sampleContact?.firstName || "Alex",
+      lastName: sampleContact?.lastName || "Taylor",
+      email: destinationEmail,
+      company: sampleContact?.company || "Acme Corp",
+      subject: subject || "Campaign Preview",
+    };
+
+    const personalizedSubject = `[Test] ${GmailSmtpProvider.interpolateMergeTags(
+      subject || "Test Campaign Preview",
+      mergeTags
+    )}`;
+
+    const personalizedHtml = GmailSmtpProvider.interpolateMergeTags(
+      htmlContent || "<p>This is a test preview of your campaign.</p>",
+      mergeTags
+    );
+
+    const testBanner = `<div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;color:#475569;margin-bottom:20px;border-radius:6px;">
+      <strong style="color:#0f172a;">MailPilot Preview:</strong> Sent to <strong>${destinationEmail}</strong> with sample contact data (<em>${mergeTags.firstName} ${mergeTags.lastName}</em>).
+    </div>`;
+
+    const finalHtml = testBanner + personalizedHtml;
+
+    const result = await GmailSmtpProvider.send(
+      {
+        to: destinationEmail,
+        fromName,
+        fromEmail,
+        subject: personalizedSubject,
+        html: finalHtml,
+        workspaceId,
+      },
+      { isTest: GmailSmtpProvider.isTestModeEnabled() }
+    );
+
+    if (!result.success) {
+      const err: any = new Error(
+        result.error || "Could not send test email. Please check your Gmail connection in Settings."
+      );
+      err.statusCode = 502;
+      throw err;
+    }
+
+    return {
+      success: true,
+      message: `Test email sent to ${destinationEmail}`,
+      messageId: result.messageId,
+      sampleDataUsed: {
+        firstName: mergeTags.firstName,
+        lastName: mergeTags.lastName,
+        company: mergeTags.company,
+      },
+    };
+  }
 }
