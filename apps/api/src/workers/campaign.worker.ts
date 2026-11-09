@@ -8,7 +8,7 @@ import {
   ScheduledCampaignJobData,
   CampaignDispatchJobResult,
 } from "../queues/campaign.queue";
-import { GmailSmtpProvider, EmailDeliveryRouter } from "../providers";
+import { GmailSmtpProvider } from "../providers";
 import { CampaignService } from "../modules/campaigns/campaign.service";
 import { GoogleCalendarService } from "../modules/schedules/google-calendar.service";
 import { GmailQuotaService } from "../modules/providers/gmail-quota.service";
@@ -285,8 +285,8 @@ export function createCampaignWorker() {
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
-        // Dispatch email via active provider (Brevo HTTPS port 443 or Gmail SMTP)
-        const sendResult = await EmailDeliveryRouter.send(
+        // Dispatch email via Gmail SMTP (tracking handled via database & application logs)
+        const sendResult = await GmailSmtpProvider.send(
           {
             to: recipient.email,
             fromName: campaign.fromName,

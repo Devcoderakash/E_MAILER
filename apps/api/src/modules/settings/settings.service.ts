@@ -1,8 +1,6 @@
 import { prisma } from "../../config/database";
 import { env } from "../../config/env";
 import { GmailSmtpProvider, CustomSmtpCredentials } from "../../providers/gmail-smtp.provider";
-import { BrevoHttpProvider } from "../../providers/brevo-http.provider";
-import { EmailDeliveryRouter } from "../../providers/email-delivery.router";
 import { encryptCredential, decryptCredential, maskSecret } from "../../utils/crypto.util";
 
 export interface SmtpConfigInput {
@@ -51,23 +49,6 @@ export class SettingsService {
         isVerified: config.isVerified,
         lastVerifiedAt: config.lastVerifiedAt,
         maskedPassword: maskSecret("1234567890123456"),
-      };
-    }
-
-    // Check Brevo HTTP API
-    if (BrevoHttpProvider.isConfigured()) {
-      return {
-        configured: true,
-        source: "environment" as const,
-        user: env.BREVO_SENDER_EMAIL || env.GMAIL_SMTP_USER,
-        senderName: env.BREVO_SENDER_NAME || env.GMAIL_SENDER_NAME || "MailPilot",
-        replyTo: null,
-        host: "api.brevo.com (HTTPS Port 443)",
-        port: 443,
-        secure: true,
-        isVerified: true,
-        lastVerifiedAt: null,
-        maskedPassword: "•••• •••• •••• ••••",
       };
     }
 
@@ -281,7 +262,7 @@ Recipient: ${cleanTo}
 
 If you received this message, your SMTP settings are configured correctly.`;
 
-      const sendResult = await EmailDeliveryRouter.send({
+      const sendResult = await GmailSmtpProvider.send({
         to: cleanTo,
         fromName: senderName,
         fromEmail: senderEmail,

@@ -32,11 +32,6 @@ const envSchema = z.object({
   GMAIL_SMTP_SECURE: z.preprocess((val) => val === "true" || val === true || val === "1", z.boolean()).default(true),
   GMAIL_SENDER_NAME: z.string().default("MailPilot"),
 
-  // Brevo HTTP API Delivery Provider (Port 443 - Bypasses all cloud SMTP blocks)
-  BREVO_API_KEY: z.string().optional(),
-  BREVO_SENDER_EMAIL: z.string().optional(),
-  BREVO_SENDER_NAME: z.string().default("MailPilot"),
-
   // Encryption Key for sensitive OAuth tokens & App Passwords (AES-256-GCM)
   ENCRYPTION_KEY: z.string().default("mailpilot-secure-encryption-key-32-bytes-minimum!"),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
@@ -119,9 +114,6 @@ function validateEnv(): Env {
       GMAIL_SMTP_PORT: Number(process.env.GMAIL_SMTP_PORT) || 465,
       GMAIL_SMTP_SECURE: process.env.GMAIL_SMTP_SECURE === "true" || process.env.GMAIL_SMTP_PORT === "465",
       GMAIL_SENDER_NAME: process.env.GMAIL_SENDER_NAME || "MailPilot",
-      BREVO_API_KEY: process.env.BREVO_API_KEY,
-      BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
-      BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || "MailPilot",
       ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || "mailpilot-secure-encryption-key-32-bytes-minimum!",
       TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY,
       GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
