@@ -28,8 +28,8 @@ const envSchema = z.object({
   GMAIL_SMTP_USER: z.string().optional(),
   GMAIL_SMTP_APP_PASSWORD: z.string().optional(),
   GMAIL_SMTP_HOST: z.string().default("smtp.gmail.com"),
-  GMAIL_SMTP_PORT: z.coerce.number().default(587),
-  GMAIL_SMTP_SECURE: z.preprocess((val) => val === "true" || val === true || val === "1", z.boolean()).default(false),
+  GMAIL_SMTP_PORT: z.coerce.number().default(465),
+  GMAIL_SMTP_SECURE: z.preprocess((val) => val === "true" || val === true || val === "1", z.boolean()).default(true),
   GMAIL_SENDER_NAME: z.string().default("MailPilot"),
 
   // Encryption Key for sensitive OAuth tokens & App Passwords (AES-256-GCM)
@@ -64,6 +64,14 @@ function normalizeEnv(): void {
   }
   if (!process.env.GMAIL_SMTP_PORT && process.env.SMTP_PORT) {
     process.env.GMAIL_SMTP_PORT = process.env.SMTP_PORT;
+  }
+  if (!process.env.GMAIL_SMTP_PORT) {
+    process.env.GMAIL_SMTP_PORT = "465";
+  }
+  if (process.env.GMAIL_SMTP_PORT === "465" && process.env.GMAIL_SMTP_SECURE === undefined) {
+    process.env.GMAIL_SMTP_SECURE = "true";
+  } else if (process.env.GMAIL_SMTP_PORT === "587" && process.env.GMAIL_SMTP_SECURE === undefined) {
+    process.env.GMAIL_SMTP_SECURE = "false";
   }
   if (process.env.GMAIL_SMTP_SECURE === undefined && process.env.SMTP_SECURE !== undefined) {
     process.env.GMAIL_SMTP_SECURE = process.env.SMTP_SECURE;
@@ -103,8 +111,8 @@ function validateEnv(): Env {
       GMAIL_SMTP_USER: process.env.GMAIL_SMTP_USER,
       GMAIL_SMTP_APP_PASSWORD: process.env.GMAIL_SMTP_APP_PASSWORD,
       GMAIL_SMTP_HOST: process.env.GMAIL_SMTP_HOST || "smtp.gmail.com",
-      GMAIL_SMTP_PORT: Number(process.env.GMAIL_SMTP_PORT) || 587,
-      GMAIL_SMTP_SECURE: process.env.GMAIL_SMTP_SECURE === "true",
+      GMAIL_SMTP_PORT: Number(process.env.GMAIL_SMTP_PORT) || 465,
+      GMAIL_SMTP_SECURE: process.env.GMAIL_SMTP_SECURE === "true" || process.env.GMAIL_SMTP_PORT === "465",
       GMAIL_SENDER_NAME: process.env.GMAIL_SENDER_NAME || "MailPilot",
       ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || "mailpilot-secure-encryption-key-32-bytes-minimum!",
       TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY,

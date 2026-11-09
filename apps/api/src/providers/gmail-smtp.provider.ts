@@ -110,14 +110,22 @@ export class GmailSmtpProvider {
    */
   public static createTransporter(credentials: CustomSmtpCredentials): Transporter {
     const cleanPass = this.normalizeAppPassword(credentials.pass);
+    const host = credentials.host || env.GMAIL_SMTP_HOST;
+    const port = credentials.port || env.GMAIL_SMTP_PORT;
+    // Auto-align secure flag: 465 requires SSL/TLS (secure: true); 587 requires STARTTLS (secure: false)
+    const secure = port === 465 ? true : port === 587 ? false : (credentials.secure ?? env.GMAIL_SMTP_SECURE);
+
     return nodemailer.createTransport({
-      host: credentials.host || env.GMAIL_SMTP_HOST,
-      port: credentials.port || env.GMAIL_SMTP_PORT,
-      secure: credentials.secure ?? env.GMAIL_SMTP_SECURE,
+      host,
+      port,
+      secure,
       auth: {
         user: credentials.user,
         pass: cleanPass,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       tls: {
         rejectUnauthorized: true,
       },
@@ -132,6 +140,7 @@ export class GmailSmtpProvider {
     user: string;
     senderName: string;
     replyTo?: string | null;
+    credentials: CustomSmtpCredentials;
   } | null> {
     if (workspaceId) {
       try {
@@ -141,20 +150,22 @@ export class GmailSmtpProvider {
 
         if (workspaceConfig && workspaceConfig.user && workspaceConfig.encryptedPassword) {
           const decryptedPass = decryptCredential(workspaceConfig.encryptedPassword);
-          const customTransporter = this.createTransporter({
+          const creds: CustomSmtpCredentials = {
             user: workspaceConfig.user,
             pass: decryptedPass,
             host: workspaceConfig.host,
             port: workspaceConfig.port,
             secure: workspaceConfig.secure,
             senderName: workspaceConfig.senderName,
-          });
+          };
+          const customTransporter = this.createTransporter(creds);
 
           return {
             transporter: customTransporter,
             user: workspaceConfig.user,
             senderName: workspaceConfig.senderName || env.GMAIL_SENDER_NAME || "MailPilot",
             replyTo: workspaceConfig.replyTo,
+            credentials: creds,
           };
         }
       } catch (err) {
@@ -165,21 +176,24 @@ export class GmailSmtpProvider {
     // Fallback to environment credentials
     if (!this.isConfigured()) return null;
 
+    const envCreds: CustomSmtpCredentials = {
+      user: env.GMAIL_SMTP_USER!,
+      pass: env.GMAIL_SMTP_APP_PASSWORD!,
+      host: env.GMAIL_SMTP_HOST,
+      port: env.GMAIL_SMTP_PORT,
+      secure: env.GMAIL_SMTP_SECURE,
+      senderName: env.GMAIL_SENDER_NAME,
+    };
+
     if (!this.defaultTransporter) {
-      this.defaultTransporter = this.createTransporter({
-        user: env.GMAIL_SMTP_USER!,
-        pass: env.GMAIL_SMTP_APP_PASSWORD!,
-        host: env.GMAIL_SMTP_HOST,
-        port: env.GMAIL_SMTP_PORT,
-        secure: env.GMAIL_SMTP_SECURE,
-        senderName: env.GMAIL_SENDER_NAME,
-      });
+      this.defaultTransporter = this.createTransporter(envCreds);
     }
 
     return {
       transporter: this.defaultTransporter,
       user: env.GMAIL_SMTP_USER!,
       senderName: env.GMAIL_SENDER_NAME || "MailPilot",
+      credentials: envCreds,
     };
   }
 
@@ -192,11 +206,13 @@ export class GmailSmtpProvider {
   ): Promise<{ healthy: boolean; error?: string }> {
     try {
       let transporter: Transporter;
+      let creds: CustomSmtpCredentials;
 
       if (credentials) {
         if (!credentials.user || !credentials.pass) {
           return { healthy: false, error: "Gmail address and App Password are required." };
         }
+        creds = credentials;
         transporter = this.createTransporter(credentials);
       } else {
         const resolved = await this.getTransporterForWorkspace(workspaceId);
@@ -206,11 +222,34 @@ export class GmailSmtpProvider {
             error: "Gmail SMTP is unconfigured. Set credentials in Settings or configure GMAIL_SMTP_* in .env.",
           };
         }
+        creds = resolved.credentials;
         transporter = resolved.transporter;
       }
 
-      await transporter.verify();
-      return { healthy: true };
+      try {
+        await transporter.verify();
+        return { healthy: true };
+      } catch (err: any) {
+        const currentPort = creds.port || env.GMAIL_SMTP_PORT;
+        const fallbackPort = currentPort === 465 ? 587 : 465;
+        console.warn(
+          `[GmailSmtpProvider] verifyConnection on port ${currentPort} failed (${err.message}). Testing failover port ${fallbackPort}...`
+        );
+
+        try {
+          const fallbackTransporter = this.createTransporter({
+            ...creds,
+            port: fallbackPort,
+            secure: fallbackPort === 465,
+          });
+          await fallbackTransporter.verify();
+          this.defaultTransporter = fallbackTransporter;
+          return { healthy: true };
+        } catch (_fallbackErr) {
+          const sanitized = this.classifySmtpError(err);
+          return { healthy: false, error: sanitized.message };
+        }
+      }
     } catch (err: any) {
       const sanitized = this.classifySmtpError(err);
       return { healthy: false, error: sanitized.message };
@@ -382,18 +421,60 @@ export class GmailSmtpProvider {
     }
 
     try {
-      const info = await transporter.sendMail({
-        from: formattedFrom,
-        to: options.to,
-        subject: options.subject,
-        html: finalHtml,
-        text: plainText,
-        replyTo: replyToAddress,
-        headers,
-      });
+      let info: any;
+      try {
+        info = await transporter.sendMail({
+          from: formattedFrom,
+          to: options.to,
+          subject: options.subject,
+          html: finalHtml,
+          text: plainText,
+          replyTo: replyToAddress,
+          headers,
+        });
+      } catch (sendErr: any) {
+        const isConnectionIssue =
+          sendErr?.code === "ECONNREFUSED" ||
+          sendErr?.code === "ETIMEDOUT" ||
+          sendErr?.code === "ESOCKET" ||
+          sendErr?.code === "ECONNRESET" ||
+          sendErr?.code === "ENOTFOUND" ||
+          String(sendErr?.message || "").toLowerCase().includes("timeout") ||
+          String(sendErr?.message || "").toLowerCase().includes("connect");
+
+        const currentPort = resolved.credentials.port || env.GMAIL_SMTP_PORT;
+
+        if (isConnectionIssue) {
+          const fallbackPort = currentPort === 465 ? 587 : 465;
+          console.warn(
+            `[GmailSmtpProvider] Outbound connection on port ${currentPort} failed (${sendErr.message}). Auto-failing over to Port ${fallbackPort} (${fallbackPort === 465 ? "SSL/TLS" : "STARTTLS"})...`
+          );
+
+          const fallbackTransporter = this.createTransporter({
+            ...resolved.credentials,
+            port: fallbackPort,
+            secure: fallbackPort === 465,
+          });
+
+          info = await fallbackTransporter.sendMail({
+            from: formattedFrom,
+            to: options.to,
+            subject: options.subject,
+            html: finalHtml,
+            text: plainText,
+            replyTo: replyToAddress,
+            headers,
+          });
+
+          // Cache working fallback transporter so subsequent sends don't hit the failed port
+          this.defaultTransporter = fallbackTransporter;
+        } else {
+          throw sendErr;
+        }
+      }
 
       // Nodemailer returns messageId upon SMTP server acceptance
-      const messageId = info.messageId || `<${Date.now()}@gmail.com>`;
+      const messageId = info?.messageId || `<${Date.now()}@gmail.com>`;
 
       return {
         success: true,
@@ -483,7 +564,17 @@ export class GmailSmtpProvider {
     }
 
     // Connection errors
-    if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ESOCKET") {
+    if (
+      err?.code === "ECONNREFUSED" ||
+      err?.code === "ETIMEDOUT" ||
+      err?.code === "ESOCKET" ||
+      err?.code === "ECONNRESET" ||
+      err?.code === "ENOTFOUND" ||
+      lowerMessage.includes("timeout") ||
+      lowerMessage.includes("connect econnrefused") ||
+      lowerMessage.includes("connect etimedout") ||
+      lowerMessage.includes("failed to connect")
+    ) {
       return {
         code: "CONNECTION_FAILED",
         message: `Failed to connect to Google SMTP host (${env.GMAIL_SMTP_HOST}:${env.GMAIL_SMTP_PORT}). Check network connectivity.`,

@@ -537,17 +537,17 @@ export function CampaignsPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {/* Send if draft */}
-                          {camp.status === "DRAFT" && (
+                          {/* Send if draft or failed */}
+                          {(camp.status === "DRAFT" || camp.status === "FAILED") && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setCampaignToSend(camp)}
                               className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                              title="Send Campaign"
+                              title={camp.status === "FAILED" ? "Retry Campaign" : "Send Campaign"}
                             >
                               <Play className="h-3.5 w-3.5 mr-1" />
-                              Send
+                              {camp.status === "FAILED" ? "Retry" : "Send"}
                             </Button>
                           )}
 
@@ -1354,7 +1354,21 @@ export function CampaignsPage() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+              {detailsCampaign.status === "FAILED" && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const toSend = detailsCampaign;
+                    setDetailsCampaign(null);
+                    setCampaignToSend(toSend);
+                  }}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Play className="h-3.5 w-3.5 mr-1" />
+                  Retry Campaign
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
