@@ -481,71 +481,138 @@ export function AnalyticsPage() {
                 {campaignSearch ? "No campaigns match your search." : "No sent campaigns found in this time range."}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-100 text-slate-400 font-medium">
-                    <tr>
-                      <th className="py-2.5 px-3">Campaign</th>
-                      <th className="py-2.5 px-3">Sent Date</th>
-                      <th className="py-2.5 px-3 text-right">Sent</th>
-                      <th className="py-2.5 px-3 text-right">Delivery Rate</th>
-                      <th className="py-2.5 px-3 text-right">Open Rate</th>
-                      <th className="py-2.5 px-3 text-right">Click Rate</th>
-                      <th className="py-2.5 px-3 text-right">Bounce Rate</th>
-                      <th className="py-2.5 px-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {campaigns.map((camp) => (
-                      <tr
-                        key={camp.id}
-                        className="hover:bg-slate-50/75 transition-colors cursor-pointer"
-                        onClick={() => setSelectedCampaignId(camp.id)}
-                      >
-                        <td className="py-3 px-3">
-                          <div className="max-w-xs sm:max-w-md space-y-0.5">
-                            <span className="font-semibold text-slate-900 truncate block">
-                              {camp.name}
-                            </span>
-                            <span className="text-slate-500 text-[11px] truncate block">
-                              {camp.subject}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+              <>
+                {/* Mobile Touch Cards (< md) */}
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {campaigns.map((camp) => (
+                    <div
+                      key={camp.id}
+                      onClick={() => setSelectedCampaignId(camp.id)}
+                      className="p-3.5 hover:bg-slate-50/75 transition-colors cursor-pointer space-y-2.5 active:bg-slate-100/60"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-slate-900 text-xs truncate block">
+                            {camp.name}
+                          </span>
+                          <span className="text-slate-500 text-[11px] truncate block mt-0.5">
+                            {camp.subject}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 shrink-0">
                           {new Date(camp.sentAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono font-medium text-slate-700 whitespace-nowrap">
-                          {camp.sentCount.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-600 font-semibold whitespace-nowrap">
-                          {camp.deliveryRate}%
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-indigo-600 font-semibold whitespace-nowrap">
-                          {camp.openRate}%
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-600 font-semibold whitespace-nowrap">
-                          {camp.clickRate}%
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-500 whitespace-nowrap">
-                          {camp.bounceRate}%
-                        </td>
-                        <td className="py-3 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-slate-500 hover:text-indigo-600"
-                            onClick={() => setSelectedCampaignId(camp.id)}
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" />
-                            Details
-                          </Button>
-                        </td>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1.5 text-center">
+                        <div className="bg-slate-50 rounded p-1">
+                          <span className="text-[10px] text-slate-400 block">Sent</span>
+                          <span className="text-xs font-bold text-slate-700 font-mono">
+                            {camp.sentCount}
+                          </span>
+                        </div>
+                        <div className="bg-emerald-50 rounded p-1">
+                          <span className="text-[10px] text-emerald-600 block">Delivery</span>
+                          <span className="text-xs font-bold text-emerald-700 font-mono">
+                            {camp.deliveryRate}%
+                          </span>
+                        </div>
+                        <div className="bg-indigo-50 rounded p-1">
+                          <span className="text-[10px] text-indigo-600 block">Opens</span>
+                          <span className="text-xs font-bold text-indigo-700 font-mono">
+                            {camp.openRate}%
+                          </span>
+                        </div>
+                        <div className="bg-amber-50 rounded p-1">
+                          <span className="text-[10px] text-amber-600 block">Clicks</span>
+                          <span className="text-xs font-bold text-amber-700 font-mono">
+                            {camp.clickRate}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end pt-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs text-indigo-600 hover:bg-indigo-50"
+                          onClick={() => setSelectedCampaignId(camp.id)}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Structured Table (>= md) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-slate-100 text-slate-400 font-medium">
+                      <tr>
+                        <th className="py-2.5 px-3">Campaign</th>
+                        <th className="py-2.5 px-3">Sent Date</th>
+                        <th className="py-2.5 px-3 text-right">Sent</th>
+                        <th className="py-2.5 px-3 text-right">Delivery Rate</th>
+                        <th className="py-2.5 px-3 text-right">Open Rate</th>
+                        <th className="py-2.5 px-3 text-right">Click Rate</th>
+                        <th className="py-2.5 px-3 text-right">Bounce Rate</th>
+                        <th className="py-2.5 px-3 text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {campaigns.map((camp) => (
+                        <tr
+                          key={camp.id}
+                          className="hover:bg-slate-50/75 transition-colors cursor-pointer"
+                          onClick={() => setSelectedCampaignId(camp.id)}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="max-w-xs sm:max-w-md space-y-0.5">
+                              <span className="font-semibold text-slate-900 truncate block">
+                                {camp.name}
+                              </span>
+                              <span className="text-slate-500 text-[11px] truncate block">
+                                {camp.subject}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                            {new Date(camp.sentAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-medium text-slate-700 whitespace-nowrap">
+                            {camp.sentCount.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-600 font-semibold whitespace-nowrap">
+                            {camp.deliveryRate}%
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-indigo-600 font-semibold whitespace-nowrap">
+                            {camp.openRate}%
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-600 font-semibold whitespace-nowrap">
+                            {camp.clickRate}%
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-500 whitespace-nowrap">
+                            {camp.bounceRate}%
+                          </td>
+                          <td className="py-3 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-slate-500 hover:text-indigo-600"
+                              onClick={() => setSelectedCampaignId(camp.id)}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              Details
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </>
@@ -752,8 +819,14 @@ function CampaignDetailModal({
   const detail = detailQuery.data as CampaignDetailAnalytics | undefined;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-4 animate-in fade-in">
-      <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-0 sm:p-4 animate-in fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-xl rounded-none border-0 sm:border border-slate-200 bg-white p-4 sm:p-6 shadow-xl space-y-5 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <BarChart2 className="h-5 w-5 text-indigo-600" />

@@ -541,7 +541,7 @@ export function AutomationBuilderPage() {
 
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs">
+        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs overflow-x-auto no-scrollbar shrink-0">
           {(["all", "active", "paused", "draft"] as const).map((tab) => (
             <button
               key={tab}
@@ -735,7 +735,7 @@ export function AutomationBuilderPage() {
       {/* ========================================================= */}
       {isEditorOpen && editingAutomation && (
         <div
-          className={`fixed z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 ${
+          className={`fixed z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 ${
             isFullscreen ? "inset-0 p-0" : "inset-0"
           }`}
         >
@@ -743,11 +743,11 @@ export function AutomationBuilderPage() {
             className={`w-full bg-white flex flex-col shadow-2xl overflow-hidden border border-slate-200 ${
               isFullscreen
                 ? "h-full rounded-none"
-                : "h-[92vh] max-w-7xl rounded-2xl"
+                : "h-full sm:h-[92vh] max-w-7xl sm:rounded-2xl rounded-none"
             }`}
           >
             {/* Top Studio Toolbar */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white shrink-0">
+            <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 border-b border-slate-200 bg-white shrink-0">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
                   <Workflow className="h-4 w-4" />
@@ -1335,8 +1335,14 @@ export function AutomationBuilderPage() {
       {/* CREATE NEW AUTOMATION MODAL                               */}
       {/* ========================================================= */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Workflow className="h-4 w-4 text-indigo-600" />

@@ -394,7 +394,7 @@ export function ScheduleCenterPage() {
           {/* Controls Bar: Filter tabs & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             {/* Status Tabs */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-2xs">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-2xs overflow-x-auto no-scrollbar shrink-0">
               {[
                 { id: "all", label: "All Items" },
                 { id: "SCHEDULED", label: "Upcoming Scheduled" },
@@ -408,7 +408,7 @@ export function ScheduleCenterPage() {
                     setStatusFilter(tab.id as any);
                     setPage(1);
                   }}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                  className={`rounded-md px-3 py-1 font-medium transition-colors whitespace-nowrap ${
                     statusFilter === tab.id
                       ? "bg-indigo-600 text-white shadow-2xs"
                       : "text-slate-600 hover:bg-slate-50"
@@ -929,8 +929,14 @@ function ScheduleCampaignModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-4 animate-in fade-in">
-      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-0 sm:p-4 animate-in fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-xl rounded-none border-0 sm:border border-slate-200 bg-white p-4 sm:p-6 shadow-xl space-y-4 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-indigo-600" />
@@ -1135,8 +1141,14 @@ function RescheduleModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-4 animate-in fade-in">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-2xs p-0 sm:p-4 animate-in fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-xl rounded-none border-0 sm:border border-slate-200 bg-white p-4 sm:p-6 shadow-xl space-y-4 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-indigo-600" />

@@ -597,7 +597,7 @@ export function TemplatesPage({ onUseInCampaign, hideHeader }: TemplatesPageProp
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         {/* Category Pills */}
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs overflow-x-auto shrink-0">
+        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs overflow-x-auto no-scrollbar shrink-0">
           {[
             { id: "all", label: "All Categories" },
             { id: "MARKETING", label: "Marketing" },
