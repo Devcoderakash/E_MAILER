@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { Send, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Lock, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { AuthLayout } from "@/components/layout/AuthLayout";
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -11,20 +11,22 @@ export function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    setPasswordError(null);
+    setGeneralError(null);
 
     if (password.length < 8) {
-      setErrorMsg("Password must be at least 8 characters long.");
+      setPasswordError("Password must be at least 8 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg("Passwords do not match.");
+      setPasswordError("Passwords do not match.");
       return;
     }
 
@@ -39,122 +41,139 @@ export function ResetPasswordPage() {
       }
 
       setSuccess(true);
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to update password. Recovery link may have expired.");
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch {
+      setGeneralError("Could not update password. The reset link may have expired.");
     } finally {
       setLoading(false);
     }
   };
 
+  if (success) {
+    return (
+      <AuthLayout
+        icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+        title="Password updated"
+        subtitle="Your password has been reset successfully. Redirecting to sign in..."
+        footer={
+          <Link
+            to="/login"
+            className="font-medium text-slate-900 hover:text-indigo-600 transition-colors underline-offset-2 hover:underline"
+          >
+            Sign in now
+          </Link>
+        }
+      >
+        <div className="pt-2">
+          <Link
+            to="/login"
+            className="w-full h-11 rounded-xl bg-gradient-to-b from-[#1F2937] to-[#111827] hover:from-[#111827] hover:to-[#0B0F17] text-white font-medium text-sm shadow-xs transition-all flex items-center justify-center"
+          >
+            Sign in
+          </Link>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <Link to="/" className="inline-flex items-center gap-2.5 mb-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
-            <Send className="h-5 w-5" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-slate-900">
-            MailPilot
-          </span>
+    <AuthLayout
+      icon={<Lock className="h-5 w-5 text-slate-700" />}
+      title="Create new password"
+      subtitle="Enter a new password for your MailPilot account."
+      footer={
+        <Link
+          to="/login"
+          className="font-medium text-slate-900 hover:text-indigo-600 transition-colors underline-offset-2 hover:underline"
+        >
+          Back to sign in
         </Link>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-          Set new password
-        </h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Choose a strong password to secure your account.
-        </p>
-      </div>
+      }
+    >
+      <form onSubmit={handleUpdatePassword} className="space-y-4" noValidate>
+        {generalError && (
+          <div className="rounded-xl bg-rose-50 border border-rose-200/80 p-3 text-xs text-rose-700">
+            {generalError}
+          </div>
+        )}
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          {errorMsg && (
-            <div className="mb-4 rounded-lg bg-rose-50 p-3 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-700">
-              <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+        <div>
+          <label htmlFor="new-password" className="sr-only">
+            New password
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              id="new-password"
+              type={showPassword ? "text" : "password"}
+              autoFocus
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordError) setPasswordError(null);
+              }}
+              placeholder="New password (min 8 chars)"
+              className={`w-full h-11 pl-10 pr-10 text-sm rounded-xl bg-[#F3F4F6] text-slate-900 placeholder-slate-400 border border-transparent transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                passwordError ? "border-rose-300 ring-2 ring-rose-500/10 bg-rose-50/30" : ""
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
 
-          {success ? (
-            <div className="text-center space-y-4">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Password updated successfully
-              </h3>
-              <p className="text-xs text-slate-600">
-                Your credentials have been securely refreshed. You can now access your dashboard.
-              </p>
-              <Button
-                onClick={() => navigate("/", { replace: true })}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm h-10"
-              >
-                Go to Dashboard
-              </Button>
-            </div>
-          ) : (
-            <form onSubmit={handleUpdatePassword} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  New Password (min 8 characters)
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full h-10 rounded-lg border border-slate-200 px-3 pr-10 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Confirm New Password
-                </label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-10 rounded-lg border border-slate-200 px-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm text-xs sm:text-sm mt-2 disabled:opacity-50"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Updating password...
-                  </span>
-                ) : (
-                  "Update Password"
-                )}
-              </Button>
-            </form>
+        <div>
+          <label htmlFor="confirm-password" className="sr-only">
+            Confirm new password
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              id="confirm-password"
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (passwordError) setPasswordError(null);
+              }}
+              placeholder="Confirm new password"
+              className={`w-full h-11 pl-10 pr-10 text-sm rounded-xl bg-[#F3F4F6] text-slate-900 placeholder-slate-400 border border-transparent transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                passwordError ? "border-rose-300 ring-2 ring-rose-500/10 bg-rose-50/30" : ""
+              }`}
+            />
+          </div>
+          {passwordError && (
+            <p className="mt-1.5 text-xs text-rose-600 pl-1">{passwordError}</p>
           )}
         </div>
-      </div>
-    </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full h-11 rounded-xl bg-gradient-to-b from-[#1F2937] to-[#111827] hover:from-[#111827] hover:to-[#0B0F17] text-white font-medium text-sm shadow-xs transition-all disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin text-white/80" />
+              <span>Updating password...</span>
+            </>
+          ) : (
+            <span>Update password</span>
+          )}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
-

@@ -1,8 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { User, Settings, Key, BookOpen, LogOut, ShieldCheck, ExternalLink } from "lucide-react";
+import {
+  User,
+  Settings,
+  Key,
+  BookOpen,
+  LogOut,
+  ShieldCheck,
+  ExternalLink,
+  Moon,
+  Sun,
+  Globe,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/features/auth/use-auth-store";
+import { usePreferences } from "@/lib/preferences";
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,6 +22,7 @@ export function UserMenu() {
   const navigate = useNavigate();
 
   const { user, profile, activeWorkspace, signOut } = useAuthStore();
+  const { language, setLanguage, theme, toggleTheme } = usePreferences();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -122,6 +135,39 @@ export function UserMenu() {
               </div>
               <ExternalLink className="h-3 w-3 text-slate-400" />
             </a>
+          </div>
+
+          {/* Preferences: Theme & Language */}
+          <div className="py-1 border-t border-slate-100 space-y-0.5">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs text-slate-700 hover:bg-slate-100/70 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                {theme === "light" ? (
+                  <Moon className="h-3.5 w-3.5 text-slate-400" />
+                ) : (
+                  <Sun className="h-3.5 w-3.5 text-amber-500" />
+                )}
+                <span>Appearance</span>
+              </div>
+              <span className="text-[11px] text-slate-500 capitalize">{theme}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLanguage(language === "en" ? "hi" : "en")}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs text-slate-700 hover:bg-slate-100/70 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Globe className="h-3.5 w-3.5 text-slate-400" />
+                <span>Language</span>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {language === "en" ? "English" : "हिन्दी"}
+              </span>
+            </button>
           </div>
 
           <div className="my-1 border-t border-slate-100" />
