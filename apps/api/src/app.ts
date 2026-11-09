@@ -29,9 +29,26 @@ export function createApp(): Application {
   app.use(helmet());
 
   // CORS Configuration
+  const allowedOrigins = [
+    env.FRONTEND_URL?.replace(/\/+$/, ""),
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://e-mailer-00sp.onrender.com",
+  ].filter(Boolean) as string[];
+
   app.use(
     cors({
-      origin: [env.FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+          allowedOrigins.includes(origin) ||
+          origin.endsWith(".onrender.com") ||
+          origin.includes("localhost")
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "x-workspace-id"],
