@@ -6,7 +6,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { addCampaignDispatchJob } from "../../queues/campaign.queue";
-import { GmailSmtpProvider } from "../../providers";
+import { GmailSmtpProvider, EmailDeliveryRouter } from "../../providers";
 
 export interface PaginationParams {
   page?: number;
@@ -511,6 +511,7 @@ export class CampaignService {
 
     const hasAudience = audience.stats.totalEligibleActive > 0;
     const isProviderConfigured =
+      EmailDeliveryRouter.isConfigured() ||
       GmailSmtpProvider.isConfigured() ||
       GmailSmtpProvider.isTestModeEnabled() ||
       Boolean(options?.isTest);
@@ -528,7 +529,7 @@ export class CampaignService {
     }
     if (!isProviderConfigured) {
       errors.push(
-        "Gmail SMTP delivery provider is unconfigured. Set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD in environment before dispatching live campaigns."
+        "No active email delivery provider is configured. Please configure Brevo (BREVO_API_KEY) or Gmail SMTP (GMAIL_SMTP_USER & GMAIL_SMTP_APP_PASSWORD) in environment variables."
       );
     }
 
