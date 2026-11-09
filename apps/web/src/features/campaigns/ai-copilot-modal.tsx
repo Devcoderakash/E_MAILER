@@ -114,22 +114,28 @@ export function AICopilotModal({
   const isConfigured = aiStatus?.configured ?? true;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:h-auto sm:max-h-[88vh] sm:max-w-2xl bg-white sm:rounded-2xl rounded-none border-0 sm:border border-slate-200 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-200">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-200">
               <Sparkles className="h-4 w-4" />
             </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 truncate">
                 <span>AI Campaign Copilot</span>
                 <span className="text-[10px] font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200/50">
                   {aiStatus?.provider || "Google Gemini"}
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 truncate">
                 Generate copy, craft high-converting subjects, and audit deliverability
               </p>
             </div>
@@ -137,7 +143,8 @@ export function AICopilotModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
+            aria-label="Close modal"
           >
             <X className="h-4 w-4" />
           </button>
@@ -145,7 +152,7 @@ export function AICopilotModal({
 
         {/* Configuration Notice if not configured */}
         {!isLoadingStatus && !isConfigured && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-start gap-2.5 text-xs text-amber-800">
+          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-2.5 sm:py-3 flex items-start gap-2.5 text-xs text-amber-800 shrink-0">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <div className="font-semibold">AI Copilot Setup Required</div>
@@ -158,7 +165,7 @@ export function AICopilotModal({
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 px-6 bg-slate-50/60 shrink-0 text-xs">
+        <div className="flex border-b border-slate-200 px-4 sm:px-6 bg-slate-50/60 shrink-0 text-xs overflow-x-auto no-scrollbar">
           {[
             { id: "subjects", label: "Subject Lines" },
             { id: "draft", label: "Email Draft" },
@@ -169,7 +176,7 @@ export function AICopilotModal({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2.5 px-3 font-medium transition-colors border-b-2 -mb-px ${
+              className={`py-2.5 px-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
                 activeTab === tab.id
                   ? "border-indigo-600 text-indigo-600 font-semibold"
                   : "border-transparent text-slate-500 hover:text-slate-800"
@@ -181,7 +188,7 @@ export function AICopilotModal({
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 overflow-y-auto space-y-5 text-xs flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs flex-1">
           {/* ==================================================== */}
           {/* TAB 1: SUBJECT LINES GENERATOR                       */}
           {/* ==================================================== */}

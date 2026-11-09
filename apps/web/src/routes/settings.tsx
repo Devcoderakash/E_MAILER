@@ -248,7 +248,7 @@ export function SettingsPage() {
       />
 
       {/* Settings Navigation Tabs */}
-      <div className="flex border-b border-slate-200/80 gap-6 text-xs sm:text-sm font-medium overflow-x-auto">
+      <div className="flex border-b border-slate-200/80 gap-3 sm:gap-6 text-xs sm:text-sm font-medium overflow-x-auto no-scrollbar pb-1">
         {[
           { id: "general", label: "General & Profile", icon: Settings },
           { id: "google", label: "Google Integrations", icon: ShieldCheck },
@@ -262,7 +262,7 @@ export function SettingsPage() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as SettingsTab)}
-              className={`flex items-center gap-2 pb-3 border-b-2 whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-2 pb-2.5 sm:pb-3 border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 isActive
                   ? "border-indigo-600 text-indigo-600 font-semibold"
                   : "border-transparent text-slate-500 hover:text-slate-800"

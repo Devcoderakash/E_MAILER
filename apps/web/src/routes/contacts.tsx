@@ -792,7 +792,111 @@ export function ContactsPage() {
           </div>
         ) : (
           <div>
-            <div className="overflow-x-auto">
+            {/* Mobile Touch Cards View (< md) */}
+            <div className="divide-y divide-slate-100 md:hidden">
+              {contactsList.map((contact) => {
+                const isSelected = selectedIds.includes(contact.id);
+                const tagItems = (contact.tags || []).map((t) =>
+                  typeof t === "string" ? { name: t, color: "#4f46e5" } : t
+                );
+                const listItems = contact.lists || [];
+
+                return (
+                  <div
+                    key={contact.id}
+                    className={`p-4 space-y-2.5 transition-colors ${
+                      isSelected ? "bg-indigo-50/40" : "hover:bg-slate-50/70"
+                    }`}
+                  >
+                    {/* Top: Checkbox, Email, Status */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectOne(contact.id)}
+                          aria-label={`Select contact ${contact.email}`}
+                          className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 text-xs truncate">
+                            {contact.email}
+                          </div>
+                          {(contact.firstName || contact.lastName) && (
+                            <div className="text-slate-500 text-[11px] truncate mt-0.5">
+                              {[contact.firstName, contact.lastName].filter(Boolean).join(" ")}
+                              {contact.company && ` • ${contact.company}`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <StatusBadge status={contact.status} />
+                      </div>
+                    </div>
+
+                    {/* Middle: Tags and Lists */}
+                    {(tagItems.length > 0 || listItems.length > 0) && (
+                      <div className="flex flex-wrap gap-1 pl-6">
+                        {tagItems.map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700 border border-slate-200/70"
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                        {listItems.map((l, idx) => (
+                          <span
+                            key={`list-${idx}`}
+                            className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-200/60"
+                          >
+                            {l.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Bottom: Date and Actions */}
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400 pl-6">
+                      <span>
+                        {new Date(contact.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(contact)}
+                          className="rounded p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                          title="Edit Contact"
+                          aria-label="Edit Contact"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContactToDelete(contact);
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="rounded p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
+                          title="Delete Contact"
+                          aria-label="Delete Contact"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Structured Table (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-semibold text-slate-600">
                   <tr>
@@ -955,8 +1059,14 @@ export function ContactsPage() {
 
       {/* Add Contact Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-semibold text-slate-900">Add New Contact</h3>
               <button
@@ -1136,8 +1246,14 @@ export function ContactsPage() {
 
       {/* Edit Contact Modal */}
       {isEditModalOpen && editingContact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={() => setIsEditModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-semibold text-slate-900">Edit Contact</h3>
               <button
@@ -1477,8 +1593,14 @@ export function ContactsPage() {
 
       {/* 3-Step CSV Import Wizard Modal */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={resetImportWizard}
+        >
+          <div
+            className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl rounded-none border-0 sm:border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl flex flex-col overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">

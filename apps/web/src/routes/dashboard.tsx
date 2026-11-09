@@ -101,6 +101,8 @@ export function DashboardOverviewPage() {
     },
     {
       header: "Recipients",
+      headerClassName: "hidden md:table-cell",
+      className: "hidden md:table-cell",
       cell: (row) => (
         <span className="text-xs text-slate-600 font-medium">
           {(row.recipientCount ?? 0).toLocaleString()}
@@ -109,6 +111,8 @@ export function DashboardOverviewPage() {
     },
     {
       header: "Sent",
+      headerClassName: "hidden sm:table-cell",
+      className: "hidden sm:table-cell",
       cell: (row) => (
         <span className="text-xs text-slate-700">
           {(row.sentCount ?? 0).toLocaleString()}
@@ -131,6 +135,8 @@ export function DashboardOverviewPage() {
     },
     {
       header: "Clicks",
+      headerClassName: "hidden lg:table-cell",
+      className: "hidden lg:table-cell",
       cell: (row) => {
         const rate =
           (row.sentCount ?? 0) > 0
@@ -148,20 +154,20 @@ export function DashboardOverviewPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Welcome back, {firstName}.
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Create email campaigns, reach your audience, and track real engagement.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto shrink-0">
           <Button
             onClick={() => navigate("/campaigns?action=create")}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold h-9 px-4 shadow-xs"
+            className="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold h-9 px-4 shadow-xs"
           >
             <Plus className="h-4 w-4" />
             Create Campaign
@@ -169,7 +175,7 @@ export function DashboardOverviewPage() {
           <Button
             variant="outline"
             onClick={() => navigate("/contacts")}
-            className="border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 text-xs font-medium h-9 px-4"
+            className="flex-1 sm:flex-none justify-center border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 text-xs font-medium h-9 px-4"
           >
             <Upload className="h-4 w-4" />
             Add Contacts

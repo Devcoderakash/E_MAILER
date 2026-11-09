@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { X } from "lucide-react";
 
 export function DashboardLayout() {
@@ -50,12 +51,15 @@ export function DashboardLayout() {
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <AppHeader onToggleMobileSidebar={() => setMobileSidebarOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 lg:p-8 pb-24 lg:pb-8">
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomNav onOpenMenu={() => setMobileSidebarOpen(true)} />
     </div>
   );
 }

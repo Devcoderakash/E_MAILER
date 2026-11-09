@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Mail,
+  MailCheck,
   Plus,
   Copy,
   Trash2,
@@ -378,12 +379,12 @@ export function CampaignsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsTemplatesModalOpen(true)}
-            className="text-xs h-9 border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5"
+            className="flex-1 sm:flex-none justify-center text-xs h-9 border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5"
           >
             <FileText className="h-3.5 w-3.5 text-slate-500" />
             <span>Templates</span>
@@ -393,7 +394,7 @@ export function CampaignsPage() {
             variant="outline"
             size="sm"
             onClick={() => setIsAICopilotOpen(true)}
-            className="text-xs h-9 border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5"
+            className="flex-1 sm:flex-none justify-center text-xs h-9 border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5"
           >
             <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
             <span>AI Copilot</span>
@@ -402,7 +403,7 @@ export function CampaignsPage() {
           <Button
             size="sm"
             onClick={openCreateWizard}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold h-9 px-4 shadow-xs"
+            className="w-full sm:w-auto justify-center bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold h-9 px-4 shadow-xs"
           >
             <Plus className="h-4 w-4" />
             <span>Create Campaign</span>
@@ -412,8 +413,8 @@ export function CampaignsPage() {
 
       {/* Compact Status Filter Chips & Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Status Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+        {/* Status Filters with hidden scrollbar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           {[
             { id: "all", label: "All Campaigns" },
             { id: "DRAFT", label: "Drafts" },
@@ -476,125 +477,243 @@ export function CampaignsPage() {
             onAction={openCreateWizard}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50/75 text-slate-500 font-medium">
-                <tr>
-                  <th className="py-3 px-4">Campaign</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Audience</th>
-                  <th className="py-3 px-4">Performance</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {campaigns.map((camp) => {
-                  const openRate =
-                    (camp.sentCount ?? 0) > 0
-                      ? (((camp.openedCount ?? 0) / (camp.sentCount ?? 1)) * 100).toFixed(1)
-                      : null;
+          <>
+            {/* Mobile View (< md): High-density Touch Cards */}
+            <div className="divide-y divide-slate-100 md:hidden">
+              {campaigns.map((camp) => {
+                const openRate =
+                  (camp.sentCount ?? 0) > 0
+                    ? (((camp.openedCount ?? 0) / (camp.sentCount ?? 1)) * 100).toFixed(1)
+                    : null;
 
-                  return (
-                    <tr
-                      key={camp.id}
-                      className="hover:bg-slate-50/75 transition-colors cursor-pointer"
-                      onClick={() => setDetailsCampaign(camp)}
-                    >
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{camp.name}</div>
-                        <div className="text-xs text-slate-500 truncate max-w-xs">{camp.subject}</div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <StatusBadge status={camp.status} />
-                      </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-600">
-                        <span className="font-medium">
-                          {(camp.recipientCount ?? 0).toLocaleString()}
-                        </span>{" "}
-                        recipients
-                      </td>
-                      <td className="py-3.5 px-4 text-xs">
-                        {camp.status === "SENT" || (camp.sentCount ?? 0) > 0 ? (
-                          <div className="space-y-0.5">
-                            <span className="font-medium text-slate-800">
-                              {(camp.sentCount ?? 0).toLocaleString()} sent
-                            </span>
-                            {openRate && (
-                              <span className="ml-2 font-semibold text-emerald-600">
-                                {openRate}% open
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-500">
-                        {camp.scheduledAt
-                          ? `Scheduled: ${new Date(camp.scheduledAt).toLocaleDateString()}`
-                          : new Date(camp.updatedAt || camp.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Send if draft, failed, or cancelled */}
-                          {(camp.status === "DRAFT" || camp.status === "FAILED" || camp.status === "CANCELLED") && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setCampaignToSend(camp)}
-                              className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                              title={camp.status === "FAILED" || camp.status === "CANCELLED" ? "Retry Campaign" : "Send Campaign"}
-                            >
-                              <Play className="h-3.5 w-3.5 mr-1" />
-                              {camp.status === "DRAFT" ? "Send" : "Retry"}
-                            </Button>
-                          )}
-
-                          {/* Cancel if scheduled or queued */}
-                          {(camp.status === "SCHEDULED" || camp.status === "QUEUED") && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setCampaignToCancel(camp)}
-                              className="h-8 px-2 text-xs text-amber-600 hover:bg-amber-50"
-                              title={camp.status === "QUEUED" ? "Cancel Queue" : "Cancel Schedule"}
-                            >
-                              <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                              Cancel
-                            </Button>
-                          )}
-
-                          {/* Duplicate */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => duplicateCampaignMutation.mutate(camp.id)}
-                            disabled={duplicateCampaignMutation.isPending}
-                            className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600"
-                            title="Duplicate"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-
-                          {/* Delete */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCampaignToDelete(camp)}
-                            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                return (
+                  <div
+                    key={camp.id}
+                    onClick={() => setDetailsCampaign(camp)}
+                    className="p-4 hover:bg-slate-50/75 transition-colors cursor-pointer space-y-2.5 active:bg-slate-100/60"
+                  >
+                    {/* Top Row: Name and Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm text-slate-900 truncate">
+                          {camp.name}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <div className="text-xs text-slate-500 truncate mt-0.5">
+                          {camp.subject}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <StatusBadge status={camp.status} />
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Metrics Chips */}
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                        <Users className="h-3 w-3 text-slate-500" />
+                        {(camp.recipientCount ?? 0).toLocaleString()} recipients
+                      </span>
+
+                      {(camp.status === "SENT" || (camp.sentCount ?? 0) > 0) && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 border border-emerald-100">
+                          <MailCheck className="h-3 w-3 text-emerald-600" />
+                          {(camp.sentCount ?? 0).toLocaleString()} sent
+                          {openRate && ` • ${openRate}% open`}
+                        </span>
+                      )}
+
+                      <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] ml-auto">
+                        <Calendar className="h-3 w-3" />
+                        {camp.scheduledAt
+                          ? new Date(camp.scheduledAt).toLocaleDateString()
+                          : new Date(camp.updatedAt || camp.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    {/* Bottom Row: Quick Touch Actions */}
+                    <div
+                      className="flex items-center justify-end gap-1 pt-1.5 border-t border-slate-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Send if draft, failed, or cancelled */}
+                      {(camp.status === "DRAFT" || camp.status === "FAILED" || camp.status === "CANCELLED") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCampaignToSend(camp)}
+                          className="h-8 px-2.5 text-xs text-emerald-700 hover:bg-emerald-50 font-medium"
+                          title={camp.status === "FAILED" || camp.status === "CANCELLED" ? "Retry Campaign" : "Send Campaign"}
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1" />
+                          {camp.status === "DRAFT" ? "Send" : "Retry"}
+                        </Button>
+                      )}
+
+                      {/* Cancel if scheduled or queued */}
+                      {(camp.status === "SCHEDULED" || camp.status === "QUEUED") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCampaignToCancel(camp)}
+                          className="h-8 px-2.5 text-xs text-amber-600 hover:bg-amber-50 font-medium"
+                          title={camp.status === "QUEUED" ? "Cancel Queue" : "Cancel Schedule"}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                          Cancel
+                        </Button>
+                      )}
+
+                      {/* Duplicate */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => duplicateCampaignMutation.mutate(camp.id)}
+                        disabled={duplicateCampaignMutation.isPending}
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600"
+                        title="Duplicate"
+                        aria-label="Duplicate campaign"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+
+                      {/* Delete */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCampaignToDelete(camp)}
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        title="Delete"
+                        aria-label="Delete campaign"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View (>= md): Full Structured Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50/75 text-slate-500 font-medium">
+                  <tr>
+                    <th className="py-3 px-4">Campaign</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Audience</th>
+                    <th className="py-3 px-4">Performance</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {campaigns.map((camp) => {
+                    const openRate =
+                      (camp.sentCount ?? 0) > 0
+                        ? (((camp.openedCount ?? 0) / (camp.sentCount ?? 1)) * 100).toFixed(1)
+                        : null;
+
+                    return (
+                      <tr
+                        key={camp.id}
+                        className="hover:bg-slate-50/75 transition-colors cursor-pointer"
+                        onClick={() => setDetailsCampaign(camp)}
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-slate-900">{camp.name}</div>
+                          <div className="text-xs text-slate-500 truncate max-w-xs">{camp.subject}</div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusBadge status={camp.status} />
+                        </td>
+                        <td className="py-3.5 px-4 text-xs text-slate-600">
+                          <span className="font-medium">
+                            {(camp.recipientCount ?? 0).toLocaleString()}
+                          </span>{" "}
+                          recipients
+                        </td>
+                        <td className="py-3.5 px-4 text-xs">
+                          {camp.status === "SENT" || (camp.sentCount ?? 0) > 0 ? (
+                            <div className="space-y-0.5">
+                              <span className="font-medium text-slate-800">
+                                {(camp.sentCount ?? 0).toLocaleString()} sent
+                              </span>
+                              {openRate && (
+                                <span className="ml-2 font-semibold text-emerald-600">
+                                  {openRate}% open
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-xs text-slate-500">
+                          {camp.scheduledAt
+                            ? `Scheduled: ${new Date(camp.scheduledAt).toLocaleDateString()}`
+                            : new Date(camp.updatedAt || camp.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Send if draft, failed, or cancelled */}
+                            {(camp.status === "DRAFT" || camp.status === "FAILED" || camp.status === "CANCELLED") && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCampaignToSend(camp)}
+                                className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                                title={camp.status === "FAILED" || camp.status === "CANCELLED" ? "Retry Campaign" : "Send Campaign"}
+                              >
+                                <Play className="h-3.5 w-3.5 mr-1" />
+                                {camp.status === "DRAFT" ? "Send" : "Retry"}
+                              </Button>
+                            )}
+
+                            {/* Cancel if scheduled or queued */}
+                            {(camp.status === "SCHEDULED" || camp.status === "QUEUED") && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCampaignToCancel(camp)}
+                                className="h-8 px-2 text-xs text-amber-600 hover:bg-amber-50"
+                                title={camp.status === "QUEUED" ? "Cancel Queue" : "Cancel Schedule"}
+                              >
+                                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                                Cancel
+                              </Button>
+                            )}
+
+                            {/* Duplicate */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => duplicateCampaignMutation.mutate(camp.id)}
+                              disabled={duplicateCampaignMutation.isPending}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600"
+                              title="Duplicate"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+
+                            {/* Delete */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCampaignToDelete(camp)}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -631,10 +750,10 @@ export function CampaignsPage() {
       {/* 4-STEP CAMPAIGN CREATION WIZARD MODAL */}
       {/* ============================================================ */}
       {isWizardOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-4xl flex flex-col bg-white sm:rounded-2xl rounded-none shadow-2xl border-0 sm:border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-slate-50/50">
               <div>
                 <h2 className="text-base font-bold text-slate-900">
                   {wizardStep === 1 && "Step 1: Who should receive this email?"}
@@ -1311,8 +1430,14 @@ export function CampaignsPage() {
 
       {/* Campaign Details Drawer */}
       {detailsCampaign && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col p-6 space-y-5 animate-in slide-in-from-right duration-200">
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs"
+          onClick={() => setDetailsCampaign(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col p-5 sm:p-6 space-y-5 animate-in slide-in-from-right duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">{detailsCampaign.name}</h3>
@@ -1322,6 +1447,7 @@ export function CampaignsPage() {
                 type="button"
                 onClick={() => setDetailsCampaign(null)}
                 className="text-slate-400 hover:text-slate-600 p-1"
+                aria-label="Close details"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1388,9 +1514,15 @@ export function CampaignsPage() {
 
       {/* Templates Drawer / Modal */}
       {isTemplatesModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="w-full max-w-5xl h-[85vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={() => setIsTemplatesModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-5xl h-full sm:h-[85vh] flex flex-col bg-white sm:rounded-2xl rounded-none shadow-2xl border-0 sm:border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Email Templates</h3>
                 <p className="text-xs text-slate-500">Browse ready-made email layouts or create your own.</p>
@@ -1399,11 +1531,12 @@ export function CampaignsPage() {
                 type="button"
                 onClick={() => setIsTemplatesModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1"
+                aria-label="Close templates"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <TemplatesPage
                 hideHeader={true}
                 onUseInCampaign={(tpl) => {

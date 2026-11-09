@@ -86,16 +86,27 @@ export function AppHeader({ onToggleMobileSidebar }: AppHeaderProps) {
         </div>
 
         {/* Right Controls: Quick Search Bar, Health Warning, Language, Dark Mode, Notifications, User Menu */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Search with Cmd+K trigger */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Mobile Icon-only Search */}
           <button
             type="button"
             onClick={() => setIsCommandPaletteOpen(true)}
-            className="flex items-center gap-2 h-9 px-3 w-36 sm:w-56 md:w-64 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-white transition-all text-xs text-left"
+            className="flex sm:hidden h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors focus:outline-none"
+            aria-label="Search"
+            title="Search (⌘K)"
+          >
+            <Search className="h-3.5 w-3.5 text-slate-500" />
+          </button>
+
+          {/* Tablet & Desktop Expanded Search with Cmd+K trigger */}
+          <button
+            type="button"
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-2 h-9 px-3 w-48 md:w-60 lg:w-64 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-white transition-all text-xs text-left"
           >
             <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
             <span className="truncate flex-1">{t.searchPlaceholder}</span>
-            <kbd className="hidden sm:inline-flex items-center rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+            <kbd className="inline-flex items-center rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
               ⌘K
             </kbd>
           </button>
@@ -103,11 +114,11 @@ export function AppHeader({ onToggleMobileSidebar }: AppHeaderProps) {
           {/* Genuine Service Notice (only visible if there is an error) */}
           <HealthStatusPill />
 
-          {/* Language Selector (EN / HI) */}
+          {/* Language Selector (EN / HI) - visible on tablet and desktop */}
           <button
             type="button"
             onClick={() => setLanguage(language === "en" ? "hi" : "en")}
-            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors text-xs font-medium flex items-center gap-1"
+            className="hidden md:flex h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors text-xs font-medium items-center gap-1"
             title="Toggle Language: English / हिन्दी"
             aria-label="Toggle language"
           >
@@ -133,8 +144,8 @@ export function AppHeader({ onToggleMobileSidebar }: AppHeaderProps) {
           {/* Notifications Popover */}
           <NotificationMenu />
 
-          {/* Help & Support Popover */}
-          <div className="relative" ref={helpRef}>
+          {/* Help & Support Popover - desktop only */}
+          <div className="relative hidden sm:block" ref={helpRef}>
             <button
               type="button"
               onClick={() => setIsHelpOpen(!isHelpOpen)}

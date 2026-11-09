@@ -111,8 +111,8 @@ export function DataTable<T extends object>({
       </div>
 
       {data.length > pageSize && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 sm:px-5 bg-slate-50/40">
-          <p className="text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 border-t border-slate-100 px-4 py-3 sm:px-5 bg-slate-50/40">
+          <p className="text-xs text-slate-500 text-center sm:text-left">
             Showing <span className="font-medium text-slate-700">{startIndex + 1}</span> to{" "}
             <span className="font-medium text-slate-700">
               {Math.min(startIndex + pageSize, data.length)}
