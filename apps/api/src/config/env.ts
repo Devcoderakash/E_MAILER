@@ -10,6 +10,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
   FRONTEND_URL: z.string().default("http://localhost:5173"),
+  PUBLIC_API_URL: z.string().optional(),
 
   // Database (Supabase PostgreSQL via Prisma)
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -34,6 +35,7 @@ const envSchema = z.object({
   // Encryption Key for sensitive OAuth tokens & App Passwords (AES-256-GCM)
   ENCRYPTION_KEY: z.string().default("mailpilot-secure-encryption-key-32-bytes-minimum!"),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
 
   // Google Calendar Integration (OAuth 2.0 Preparation)
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -47,7 +49,35 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+function normalizeEnv(): void {
+  if (!process.env.PUBLIC_API_URL && process.env.API_URL) {
+    process.env.PUBLIC_API_URL = process.env.API_URL;
+  }
+  if (!process.env.GMAIL_SMTP_USER && process.env.GMAIL_USER) {
+    process.env.GMAIL_SMTP_USER = process.env.GMAIL_USER;
+  }
+  if (!process.env.GMAIL_SMTP_APP_PASSWORD && process.env.GMAIL_APP_PASSWORD) {
+    process.env.GMAIL_SMTP_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+  }
+  if (!process.env.GMAIL_SMTP_HOST && process.env.SMTP_HOST) {
+    process.env.GMAIL_SMTP_HOST = process.env.SMTP_HOST;
+  }
+  if (!process.env.GMAIL_SMTP_PORT && process.env.SMTP_PORT) {
+    process.env.GMAIL_SMTP_PORT = process.env.SMTP_PORT;
+  }
+  if (process.env.GMAIL_SMTP_SECURE === undefined && process.env.SMTP_SECURE !== undefined) {
+    process.env.GMAIL_SMTP_SECURE = process.env.SMTP_SECURE;
+  }
+  if (!process.env.TOKEN_ENCRYPTION_KEY && process.env.CREDENTIAL_ENCRYPTION_KEY) {
+    process.env.TOKEN_ENCRYPTION_KEY = process.env.CREDENTIAL_ENCRYPTION_KEY;
+  }
+  if (!process.env.ENCRYPTION_KEY && process.env.CREDENTIAL_ENCRYPTION_KEY) {
+    process.env.ENCRYPTION_KEY = process.env.CREDENTIAL_ENCRYPTION_KEY;
+  }
+}
+
 function validateEnv(): Env {
+  normalizeEnv();
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
@@ -63,6 +93,7 @@ function validateEnv(): Env {
       NODE_ENV: "development",
       PORT: Number(process.env.PORT) || 4000,
       FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
+      PUBLIC_API_URL: process.env.PUBLIC_API_URL || process.env.API_URL,
       DATABASE_URL: process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/mailpilot",
       DIRECT_URL: process.env.DIRECT_URL,
       SUPABASE_URL: process.env.SUPABASE_URL || "https://placeholder-project.supabase.co",

@@ -11,7 +11,14 @@ import {
 import { GmailSmtpProvider } from "../providers";
 import { CampaignService } from "../modules/campaigns/campaign.service";
 import { GoogleCalendarService } from "../modules/schedules/google-calendar.service";
-import { CampaignStatus, CampaignRecipientStatus } from "@prisma/client";
+import { GmailQuotaService } from "../modules/providers/gmail-quota.service";
+import { UnsubscribeService } from "../modules/webhooks/unsubscribe.service";
+import { env } from "../config/env";
+import {
+  CampaignStatus,
+  CampaignRecipientStatus,
+  ContactStatus,
+} from "@prisma/client";
 
 export function createCampaignWorker() {
   const worker = new Worker<CampaignJobData, CampaignDispatchJobResult>(
@@ -182,7 +189,7 @@ export function createCampaignWorker() {
           continue;
         }
 
-        // Fetch recipient
+        // Fetch recipient with contact data
         const recipient = await prisma.campaignRecipient.findUnique({
           where: { id: recipientId },
           include: { contact: true },
@@ -194,6 +201,47 @@ export function createCampaignWorker() {
           continue;
         }
 
+        // Suppression List Guard: Never dispatch to unsubscribed or bounced contacts
+        if (
+          recipient.contact?.status === ContactStatus.UNSUBSCRIBED ||
+          recipient.contact?.status === ContactStatus.BOUNCED
+        ) {
+          console.log(
+            `[CampaignWorker] Suppressing dispatch to ${recipient.email} (Status: ${recipient.contact.status})`
+          );
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: {
+              status: CampaignRecipientStatus.SKIPPED,
+              errorMessage: `Suppressed: Contact is ${recipient.contact.status.toLowerCase()}`,
+            },
+          });
+          skippedCount++;
+          continue;
+        }
+
+        // Daily Gmail Quota Guard: Ensure sending does not exceed Google's 500 emails/day rolling limit
+        const quotaCheck = await GmailQuotaService.canSendBatch(1, campaign.workspaceId);
+        if (!quotaCheck.canSend) {
+          console.warn(
+            `[CampaignWorker] Daily Gmail quota reached during campaign ${campaignId}. Pausing dispatches.`
+          );
+          await prisma.campaign.update({
+            where: { id: campaignId },
+            data: {
+              status: CampaignStatus.PAUSED,
+              schedulingError: `Dispatch paused: Daily Gmail quota limit reached (${quotaCheck.remaining} remaining). Rolling quota resets at ${quotaCheck.resetAt}.`,
+            },
+          });
+
+          // Keep remaining recipient as PENDING so it can be resumed later
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: { status: CampaignRecipientStatus.PENDING },
+          });
+          break;
+        }
+
         // Transition recipient to PROCESSING
         await prisma.campaignRecipient.update({
           where: { id: recipient.id },
@@ -203,6 +251,14 @@ export function createCampaignWorker() {
           },
         });
 
+        // Generate recipient-specific secure, signed unsubscribe URL
+        const { url: unsubscribeUrl } = UnsubscribeService.generateUnsubscribeUrl({
+          recipientId: recipient.id,
+          campaignId: campaign.id,
+          workspaceId: campaign.workspaceId,
+          email: recipient.email,
+        });
+
         // Merge tags
         const personalizedSubject = GmailSmtpProvider.interpolateMergeTags(campaign.subject, {
           firstName: recipient.firstName,
@@ -210,6 +266,7 @@ export function createCampaignWorker() {
           email: recipient.email,
           company: recipient.contact?.company || null,
           subject: campaign.subject,
+          unsubscribe_url: unsubscribeUrl,
         });
 
         const personalizedHtml = GmailSmtpProvider.interpolateMergeTags(campaign.htmlContent, {
@@ -218,9 +275,17 @@ export function createCampaignWorker() {
           email: recipient.email,
           company: recipient.contact?.company || null,
           subject: campaign.subject,
+          unsubscribe_url: unsubscribeUrl,
         });
 
-        // Dispatch email via Gmail SMTP
+        // Gradual sending delay: Add a human-like delay between recipient dispatches
+        // to avoid Google SMTP burst filters (skipped in automated tests)
+        const isSimulation = GmailSmtpProvider.isTestModeEnabled() || (job.data as CampaignDispatchJobData).isTest;
+        if (!isSimulation) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+
+        // Dispatch email via Gmail SMTP (tracking handled via database & application logs)
         const sendResult = await GmailSmtpProvider.send(
           {
             to: recipient.email,
@@ -231,12 +296,9 @@ export function createCampaignWorker() {
             html: personalizedHtml,
             preheader: campaign.preheader,
             workspaceId: campaign.workspaceId,
-            tags: [
-              { name: "campaign_id", value: campaign.id },
-              { name: "workspace_id", value: campaign.workspaceId },
-            ],
+            unsubscribeUrl,
           },
-          { isTest: (job.data as CampaignDispatchJobData).isTest }
+          { isTest: isSimulation }
         );
 
         if (sendResult.success) {
@@ -255,27 +317,64 @@ export function createCampaignWorker() {
             data: { sentCount: { increment: 1 } },
           });
 
+          await GmailQuotaService.recordSentEmail(campaign.workspaceId);
           sentCount++;
         } else {
-          const failureReason = sendResult.error || "Delivery failed via email provider";
+          const failureReason = sendResult.error || "Delivery rejected by email provider";
           console.error(
             `[CampaignWorker] Recipient dispatch failed for ${recipient.email}: ${failureReason}`
           );
 
+          const isPermanent = Boolean(sendResult.isPermanentBounce);
+          const finalRecipientStatus = isPermanent
+            ? CampaignRecipientStatus.BOUNCED
+            : CampaignRecipientStatus.FAILED;
+
           await prisma.campaignRecipient.update({
             where: { id: recipient.id },
             data: {
-              status: CampaignRecipientStatus.FAILED,
+              status: finalRecipientStatus,
+              bouncedAt: isPermanent ? new Date() : null,
               errorMessage: failureReason,
             },
           });
 
+          // Automatic Suppression: Permanently flag hard-bounced addresses in PostgreSQL
+          if (isPermanent && recipient.contactId) {
+            await prisma.contact.update({
+              where: { id: recipient.contactId },
+              data: { status: ContactStatus.BOUNCED },
+            });
+            console.log(
+              `[CampaignWorker] Automatically marked contact ${recipient.email} as BOUNCED in database to protect sender reputation.`
+            );
+          }
+
           await prisma.campaign.update({
             where: { id: campaignId },
-            data: { failedCount: { increment: 1 } },
+            data: {
+              failedCount: { increment: 1 },
+              ...(isPermanent ? { bouncedCount: { increment: 1 } } : {}),
+            },
           });
 
           failedCount++;
+
+          // Handle Gmail Quota Exceeded error dynamically from Google's response
+          if (sendResult.isQuotaExceeded) {
+            console.warn(
+              `[CampaignWorker] Google SMTP returned Quota Exceeded (550 5.4.5). Pausing remaining dispatches.`
+            );
+            await prisma.campaign.update({
+              where: { id: campaignId },
+              data: {
+                status: CampaignStatus.PAUSED,
+                schedulingError:
+                  "Google daily sending quota exceeded (500 emails/day). Dispatches paused until rolling window resets.",
+              },
+            });
+            break;
+          }
         }
       }
 
@@ -330,10 +429,10 @@ export function createCampaignWorker() {
     },
     {
       connection: redis,
-      concurrency: 2,
+      concurrency: 1, // Safe single concurrency for personal Gmail SMTP to prevent concurrent session locking
       limiter: {
-        max: 2, // 2 emails per second max to respect Google SMTP rate limits
-        duration: 1000,
+        max: 1, // 1 batch job per 1.5 seconds max
+        duration: 1500,
       },
     }
   );

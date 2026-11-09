@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -10,13 +11,12 @@ import {
   Plus,
   Upload,
   Calendar,
-  Sparkles,
   ArrowRight,
   Clock,
-  Activity,
-  FileText,
-  Workflow,
   CheckCircle2,
+  Circle,
+  X,
+  BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,30 +29,35 @@ import type { Campaign } from "@/types";
 
 export function DashboardOverviewPage() {
   const navigate = useNavigate();
-  const { activeWorkspace } = useAuthStore();
+  const { activeWorkspace, profile, user } = useAuthStore();
 
-  // 1. Real Contact Statistics
+  // Onboarding dismiss state
+  const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(() => {
+    return localStorage.getItem("mailpilot_onboarding_dismissed") === "true";
+  });
+
+  // 1. Audience Stats
   const { data: contactStats } = useQuery({
     queryKey: ["contact-stats", activeWorkspace?.id],
     queryFn: () => api.getContactStats(),
     enabled: !!activeWorkspace?.id,
   });
 
-  // 2. Real Analytics Overview
+  // 2. Performance Overview
   const { data: analyticsOverview } = useQuery({
     queryKey: ["analytics-overview", activeWorkspace?.id],
     queryFn: () => api.getAnalyticsOverview(),
     enabled: !!activeWorkspace?.id,
   });
 
-  // 3. Real Recent Broadcast Campaigns
+  // 3. Recent Campaigns
   const { data: campaignsData } = useQuery({
     queryKey: ["recent-campaigns", activeWorkspace?.id],
     queryFn: () => api.getCampaigns({ page: 1, limit: 5 }),
     enabled: !!activeWorkspace?.id,
   });
 
-  // 4. Real Upcoming Scheduled Campaigns
+  // 4. Upcoming Schedules
   const { data: schedulesData } = useQuery({
     queryKey: ["upcoming-schedules", activeWorkspace?.id],
     queryFn: () => api.getSchedules(),
@@ -62,10 +67,27 @@ export function DashboardOverviewPage() {
   const recentCampaigns = campaignsData?.items || [];
   const upcomingSchedules = schedulesData?.items || [];
 
+  // Determine user first name
+  const rawName = profile?.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "there";
+  const firstName = rawName.split(" ")[0];
+
+  // Calculate actual onboarding progress
+  const hasContacts = (contactStats?.total ?? 0) > 0;
+  const hasCampaigns = (campaignsData?.pagination?.total ?? 0) > 0 || recentCampaigns.length > 0;
+  const hasSentEmail = (analyticsOverview?.sent ?? 0) > 0 || recentCampaigns.some((c) => c.status === "SENT");
+
+  const completedStepsCount = [hasContacts, hasCampaigns, hasSentEmail].filter(Boolean).length;
+  const isAllCompleted = completedStepsCount === 3;
+
+  const handleDismissOnboarding = () => {
+    localStorage.setItem("mailpilot_onboarding_dismissed", "true");
+    setIsOnboardingDismissed(true);
+  };
+
   // Table columns definition
   const campaignColumns: Column<Campaign>[] = [
     {
-      header: "Campaign Name",
+      header: "Campaign",
       cell: (row) => (
         <div className="space-y-0.5 max-w-xs sm:max-w-md">
           <div className="font-semibold text-slate-900 truncate">{row.name}</div>
@@ -78,23 +100,23 @@ export function DashboardOverviewPage() {
       cell: (row) => <StatusBadge status={row.status} />,
     },
     {
-      header: "Audience",
+      header: "Recipients",
       cell: (row) => (
-        <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-medium">
-          {row.recipientCount} recipients
+        <span className="text-xs text-slate-600 font-medium">
+          {(row.recipientCount ?? 0).toLocaleString()}
         </span>
       ),
     },
     {
-      header: "Dispatched",
+      header: "Sent",
       cell: (row) => (
-        <span className="font-mono text-xs text-slate-700">
+        <span className="text-xs text-slate-700">
           {(row.sentCount ?? 0).toLocaleString()}
         </span>
       ),
     },
     {
-      header: "Open Rate",
+      header: "Opens",
       cell: (row) => {
         const rate =
           (row.sentCount ?? 0) > 0
@@ -108,7 +130,7 @@ export function DashboardOverviewPage() {
       },
     },
     {
-      header: "Click Rate",
+      header: "Clicks",
       cell: (row) => {
         const rate =
           (row.sentCount ?? 0) > 0
@@ -125,84 +147,154 @@ export function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-[0_1px_3px_rgba(0,0,0,0.03)] relative overflow-hidden">
-        <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200/60 px-3 py-1 text-xs font-semibold text-indigo-700">
-              <Sparkles className="h-3.5 w-3.5" />
-              Google Ecosystem Email & AI Platform
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              Welcome back to MailPilot
-            </h1>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Dispatch targeted campaigns via Gmail SMTP, automate behavioral drip workflows,
-              and sync campaign schedules seamlessly with Google Calendar.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Button
-              onClick={() => navigate("/campaigns")}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-2 text-xs sm:text-sm font-medium h-10 px-4"
-            >
-              <Plus className="h-4 w-4" />
-              Create Campaign
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate("/contacts")}
-              className="border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 text-xs sm:text-sm font-medium h-10 px-4"
-            >
-              <Upload className="h-4 w-4" />
-              Import Contacts
-            </Button>
-          </div>
+      {/* Welcome Banner */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Welcome back, {firstName}.
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Create email campaigns, reach your audience, and track real engagement.
+          </p>
         </div>
 
-        {/* Subtle decorative background glow */}
-        <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-50/60 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-3 shrink-0">
+          <Button
+            onClick={() => navigate("/campaigns?action=create")}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold h-9 px-4 shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            Create Campaign
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/contacts")}
+            className="border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 text-xs font-medium h-9 px-4"
+          >
+            <Upload className="h-4 w-4" />
+            Add Contacts
+          </Button>
+        </div>
       </div>
 
-      {/* KPI Cards Header */}
-      <div>
-        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
-          Live Workspace Metrics
-        </h2>
-        <p className="text-xs text-slate-500">
-          Real-time delivery and engagement data powered by Supabase PostgreSQL and Gmail SMTP.
-        </p>
-      </div>
+      {/* Getting Started Checklist (Dismissible & Real Progress) */}
+      {!isOnboardingDismissed && !isAllCompleted && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-5 space-y-4 relative">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-indigo-950">
+                Getting Started Checklist
+              </h2>
+              <p className="text-xs text-indigo-700 mt-0.5">
+                Complete these 3 steps to send your first campaign ({completedStepsCount} of 3 completed).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissOnboarding}
+              className="text-indigo-400 hover:text-indigo-600 p-1 rounded-lg"
+              title="Dismiss checklist"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
 
-      {/* KPI Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Step 1: Add contacts */}
+            <div
+              onClick={() => !hasContacts && navigate("/contacts")}
+              className={`p-3.5 rounded-lg border bg-white flex items-start gap-3 transition-colors ${
+                hasContacts
+                  ? "border-emerald-200 bg-emerald-50/30"
+                  : "border-slate-200 hover:border-indigo-300 cursor-pointer"
+              }`}
+            >
+              {hasContacts ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-300 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0">
+                <div className={`text-xs font-semibold ${hasContacts ? "text-emerald-900 line-through" : "text-slate-900"}`}>
+                  1. Add your contacts
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {hasContacts ? `${contactStats?.total} contacts added` : "Import a CSV or add contacts"}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2: Create campaign */}
+            <div
+              onClick={() => !hasCampaigns && navigate("/campaigns?action=create")}
+              className={`p-3.5 rounded-lg border bg-white flex items-start gap-3 transition-colors ${
+                hasCampaigns
+                  ? "border-emerald-200 bg-emerald-50/30"
+                  : "border-slate-200 hover:border-indigo-300 cursor-pointer"
+              }`}
+            >
+              {hasCampaigns ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-300 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0">
+                <div className={`text-xs font-semibold ${hasCampaigns ? "text-emerald-900 line-through" : "text-slate-900"}`}>
+                  2. Create your first campaign
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {hasCampaigns ? "Campaign drafted" : "Pick a template and write an email"}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3: Send email */}
+            <div
+              onClick={() => !hasSentEmail && navigate("/campaigns")}
+              className={`p-3.5 rounded-lg border bg-white flex items-start gap-3 transition-colors ${
+                hasSentEmail
+                  ? "border-emerald-200 bg-emerald-50/30"
+                  : "border-slate-200 hover:border-indigo-300 cursor-pointer"
+              }`}
+            >
+              {hasSentEmail ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-300 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0">
+                <div className={`text-xs font-semibold ${hasSentEmail ? "text-emerald-900 line-through" : "text-slate-900"}`}>
+                  3. Send your first email
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {hasSentEmail ? "Emails dispatched" : "Send or schedule your campaign"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Simplified Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Audience"
+          title="Audience"
           value={contactStats ? contactStats.total.toLocaleString() : "0"}
-          change={contactStats ? `${contactStats.active} active subscribers` : undefined}
+          change={contactStats ? `${contactStats.active} active` : undefined}
           trend={(contactStats?.total ?? 0) > 0 ? "up" : "neutral"}
-          description={
-            contactStats
-              ? `${contactStats.unsubscribed} unsubscribed, ${contactStats.bounced} bounced`
-              : "No contacts in active workspace"
-          }
+          description="Total subscribed contacts"
           icon={Users}
         />
         <StatCard
-          title="Emails Dispatched"
+          title="Sent Emails"
           value={analyticsOverview ? analyticsOverview.sent.toLocaleString() : "0"}
           change={
             analyticsOverview && analyticsOverview.sent > 0
-              ? `${analyticsOverview.deliveryRate}% delivered`
+              ? `${analyticsOverview.sent} delivered`
               : undefined
           }
           trend={(analyticsOverview?.sent ?? 0) > 0 ? "up" : "neutral"}
-          description={
-            analyticsOverview && analyticsOverview.sent > 0
-              ? `${analyticsOverview.delivered} confirmed deliveries`
-              : "Awaiting first campaign dispatch"
-          }
+          description="Campaign emails dispatched"
           icon={Send}
         />
         <StatCard
@@ -214,15 +306,11 @@ export function DashboardOverviewPage() {
           }
           change={
             analyticsOverview && analyticsOverview.uniqueOpens > 0
-              ? `${analyticsOverview.uniqueOpens} unique opens`
+              ? `${analyticsOverview.uniqueOpens} opens`
               : undefined
           }
           trend={(analyticsOverview?.uniqueOpens ?? 0) > 0 ? "up" : "neutral"}
-          description={
-            analyticsOverview && analyticsOverview.uniqueOpens > 0
-              ? "Tracked across broadcast campaigns"
-              : "Awaiting recipient open events"
-          }
+          description="Subscribers who viewed email"
           icon={MailCheck}
         />
         <StatCard
@@ -234,37 +322,33 @@ export function DashboardOverviewPage() {
           }
           change={
             analyticsOverview && analyticsOverview.uniqueClicks > 0
-              ? `${analyticsOverview.uniqueClicks} unique clicks`
+              ? `${analyticsOverview.uniqueClicks} clicks`
               : undefined
           }
           trend={(analyticsOverview?.uniqueClicks ?? 0) > 0 ? "up" : "neutral"}
-          description={
-            analyticsOverview && analyticsOverview.uniqueClicks > 0
-              ? "Tracked across campaign links"
-              : "Awaiting recipient click events"
-          }
+          description="Subscribers who clicked links"
           icon={MousePointerClick}
         />
       </div>
 
-      {/* Split Section: Recent Campaigns Table + Right Side (Activity & Upcoming) */}
+      {/* Split Section: Recent Campaigns Table + Right Side (Upcoming Schedules & Quick Launch) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Recent Campaigns Table */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
-                Recent Broadcast Campaigns
+                Recent Campaigns
               </h3>
               <p className="text-xs text-slate-500">
-                Latest dispatches from your workspace.
+                Latest email broadcasts from your workspace.
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/campaigns")}
-              className="text-xs gap-1 border-slate-200 text-slate-700"
+              className="text-xs gap-1 border-slate-200 text-slate-700 hover:bg-slate-50"
             >
               View all
               <ArrowRight className="h-3.5 w-3.5" />
@@ -275,11 +359,11 @@ export function DashboardOverviewPage() {
             columns={campaignColumns}
             data={recentCampaigns}
             keyExtractor={(row) => row.id}
-            emptyMessage="No broadcast campaigns created yet. Start by crafting your first campaign."
+            emptyMessage="No campaigns created yet. Start with your first campaign."
             emptyAction={
               <Button
                 size="sm"
-                onClick={() => navigate("/campaigns")}
+                onClick={() => navigate("/campaigns?action=create")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs mt-2"
               >
                 Create Campaign
@@ -288,36 +372,36 @@ export function DashboardOverviewPage() {
           />
         </div>
 
-        {/* Right 1 Col: Upcoming Scheduled & Architecture Status */}
+        {/* Right 1 Col: Upcoming Schedules & Quick Launch */}
         <div className="space-y-6">
-          {/* Upcoming Scheduled */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-3">
+          {/* Upcoming Schedules */}
+          <div className="rounded-xl border border-slate-200/80 bg-white p-5 space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-indigo-600" />
                 <h4 className="text-xs font-semibold text-slate-900">
-                  Upcoming Schedules
+                  Upcoming Scheduled
                 </h4>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/schedule")}
-                className="text-[11px] h-6 px-2 text-indigo-600"
+                className="text-[11px] h-6 px-2 text-indigo-600 hover:text-indigo-700"
               >
-                Schedule Center &rarr;
+                Schedule &rarr;
               </Button>
             </div>
 
             {upcomingSchedules.length > 0 ? (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {upcomingSchedules.slice(0, 3).map((item) => (
                   <div
                     key={item.id}
                     className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-semibold text-slate-900 line-clamp-1">
+                      <span className="text-xs font-semibold text-slate-900 truncate">
                         {item.name}
                       </span>
                       <StatusBadge status="scheduled" showDot={false} />
@@ -326,11 +410,11 @@ export function DashboardOverviewPage() {
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-slate-400" />
                         {item.scheduledAt
-                          ? new Date(item.scheduledAt).toLocaleString()
+                          ? new Date(item.scheduledAt).toLocaleDateString()
                           : "Scheduled"}
                       </span>
-                      <span className="font-mono text-slate-600 font-medium">
-                        {item.recipientCount} rcpts
+                      <span className="text-slate-600 font-medium">
+                        {item.recipientCount} recipients
                       </span>
                     </div>
                   </div>
@@ -346,108 +430,61 @@ export function DashboardOverviewPage() {
                   onClick={() => navigate("/schedule")}
                   className="text-xs h-7 border-slate-200"
                 >
-                  Schedule a Campaign
+                  Schedule an Email
                 </Button>
               </div>
             )}
           </div>
 
-          {/* Google Ecosystem Status Summary */}
-          <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-emerald-600" />
-                <h4 className="text-xs font-semibold text-slate-900">
-                  Google Architecture Stack
-                </h4>
-              </div>
-            </div>
+          {/* Quick Launch Cards */}
+          <div className="rounded-xl border border-slate-200/80 bg-white p-5">
+            <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
+              Quick Actions
+            </h4>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => navigate("/campaigns?action=create")}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
+              >
+                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-900">Create Campaign</div>
+                  <div className="text-[11px] text-slate-500">Design and send an email</div>
+                </div>
+              </button>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Gmail SMTP Gateway
-                </span>
-                <span className="text-[11px] font-mono text-slate-700 font-medium">smtp.gmail.com:587</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> PostgreSQL + BullMQ
-                </span>
-                <span className="text-[11px] font-mono text-slate-700 font-medium">Delayed Queues</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-slate-600 flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600" /> Google Gemini AI
-                </span>
-                <span className="text-[11px] font-mono text-slate-700 font-medium">gemini-2.0-flash</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/contacts")}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
+              >
+                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-900">Manage Contacts</div>
+                  <div className="text-[11px] text-slate-500">Import and organize subscribers</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/reports")}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
+              >
+                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <BarChart2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-900">View Reports</div>
+                  <div className="text-[11px] text-slate-500">Track opens and clicks</div>
+                </div>
+              </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Quick Launch Shortcuts Bar */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
-          Quick Launch Shortcuts
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/campaigns")}
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/70 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-left group"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Send className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-900">Create Campaign</div>
-              <div className="text-[11px] text-slate-500">Gmail SMTP blast</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/contacts")}
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/70 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-left group"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Upload className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-900">Import Contacts</div>
-              <div className="text-[11px] text-slate-500">CSV or API sync</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/templates")}
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/70 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-left group"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <FileText className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-900">Design Template</div>
-              <div className="text-[11px] text-slate-500">Responsive layouts</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/automations")}
-            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/70 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all text-left group"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Workflow className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-900">Automation Builder</div>
-              <div className="text-[11px] text-slate-500">Triggered drip sequences</div>
-            </div>
-          </button>
         </div>
       </div>
     </div>

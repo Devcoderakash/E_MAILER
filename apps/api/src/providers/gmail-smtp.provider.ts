@@ -2,6 +2,7 @@ import nodemailer, { Transporter } from "nodemailer";
 import { env } from "../config/env";
 import { prisma } from "../config/database";
 import { decryptCredential } from "../utils/crypto.util";
+import { UnsubscribeService } from "../modules/webhooks/unsubscribe.service";
 
 export interface SendEmailOptions {
   to: string;
@@ -15,6 +16,7 @@ export interface SendEmailOptions {
   tags?: { name: string; value: string }[];
   workspaceId?: string;
   unsubscribeUrl?: string;
+  isDeliverabilityTest?: boolean;
 }
 
 export interface SendEmailResult {
@@ -24,6 +26,17 @@ export interface SendEmailResult {
   errorCode?: string;
   simulated: boolean;
   accepted?: boolean;
+  isPermanentBounce?: boolean;
+  isQuotaExceeded?: boolean;
+  isAuthFailure?: boolean;
+}
+
+export interface ClassifiedSmtpError {
+  code: string;
+  message: string;
+  isPermanentBounce: boolean;
+  isQuotaExceeded: boolean;
+  isAuthFailure: boolean;
 }
 
 export interface CustomSmtpCredentials {
@@ -205,23 +218,78 @@ export class GmailSmtpProvider {
   }
 
   /**
-   * Strip HTML tags to produce a clean plain-text fallback
+   * Produce a clean, structured plain-text fallback for multipart/alternative MIME.
+   * Multipart messages containing both text/plain and text/html are strongly favored by Gmail spam filters.
    */
-  public static stripHtml(html: string): string {
+  public static generatePlainText(
+    html: string,
+    options?: { preheader?: string | null; unsubscribeUrl?: string }
+  ): string {
     if (!html) return "";
-    return html
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<br\s*[\/]?>/gi, "\n")
-      .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
+
+    let text = html;
+
+    // Remove head, style, script blocks
+    text = text.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, "");
+    text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+    text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+
+    // Convert link anchors to readable text + URL
+    text = text.replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, url, linkContent) => {
+      const cleanLabel = linkContent.replace(/<[^>]+>/g, "").trim();
+      if (!cleanLabel || cleanLabel === url) return url;
+      return `${cleanLabel} (${url})`;
+    });
+
+    // Convert headings
+    text = text.replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, "\n\n$1\n");
+
+    // Convert list items
+    text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "\n• $1");
+
+    // Convert breaks and block elements
+    text = text.replace(/<br\s*[\/]?>/gi, "\n");
+    text = text.replace(/<\/(p|div|tr|table|blockquote)>/gi, "\n\n");
+
+    // Strip remaining tags
+    text = text.replace(/<[^>]+>/g, "");
+
+    // Decode HTML entities
+    text = text
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n\s*\n/g, "\n\n")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&copy;/g, "©");
+
+    // Normalize spacing
+    text = text
+      .split("\n")
+      .map((l) => l.trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
+
+    // Include preheader snippet at the beginning if provided
+    if (options?.preheader && options.preheader.trim()) {
+      text = `${options.preheader.trim()}\n\n${text}`;
+    }
+
+    // Include plain-text unsubscribe notice if URL provided
+    if (options?.unsubscribeUrl) {
+      text += `\n\n---\nTo unsubscribe from these emails, visit:\n${options.unsubscribeUrl}`;
+    }
+
+    return text;
+  }
+
+  /**
+   * Backwards-compatible alias for stripHtml
+   */
+  public static stripHtml(html: string): string {
+    return this.generatePlainText(html);
   }
 
   /**
@@ -258,31 +326,59 @@ export class GmailSmtpProvider {
 
     const { transporter, user: authenticatedUser, senderName: defaultSenderName } = resolved;
 
-    // Construct From header with sender name and authenticated Gmail address
+    // Sender Identity: Authenticated address ensures SPF/DKIM alignment with Google SMTP.
+    // Display name is sanitized to prevent RFC 5322 header injection and avoid misleading impersonation.
     const fromAddress = authenticatedUser;
-    const fromDisplayName = options.fromName || defaultSenderName || "MailPilot";
-    const formattedFrom = `"${fromDisplayName}" <${fromAddress}>`;
+    const rawDisplayName = options.fromName || defaultSenderName || "MailPilot";
+    const sanitizedDisplayName = rawDisplayName.replace(/[\r\n"]/g, "").trim() || "MailPilot";
+    const formattedFrom = `"${sanitizedDisplayName}" <${fromAddress}>`;
 
-    // Add preheader if provided
+    // Process HTML & Unsubscribe Link
     let finalHtml = options.html;
+
+    // Auto-append compliant unsubscribe footer if URL provided and not present
+    if (
+      options.unsubscribeUrl &&
+      !finalHtml.toLowerCase().includes("unsubscribe") &&
+      !finalHtml.toLowerCase().includes("{{unsubscribe_url}}")
+    ) {
+      finalHtml += `
+<div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  You are receiving this communication from ${sanitizedDisplayName}.<br />
+  <a href="${options.unsubscribeUrl}" style="color: #64748b; text-decoration: underline;">Unsubscribe</a> from future broadcast emails.
+</div>`;
+    }
+
+    // Add hidden inbox preheader snippet if provided
     if (options.preheader && options.preheader.trim()) {
       const preheaderHtml = `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${options.preheader}</div>`;
       finalHtml = preheaderHtml + finalHtml;
     }
 
-    const plainText = options.text || this.stripHtml(options.html);
+    // Generate rich multipart plain-text alternative
+    const plainText =
+      options.text ||
+      this.generatePlainText(finalHtml, {
+        preheader: options.preheader,
+        unsubscribeUrl: options.unsubscribeUrl,
+      });
 
-    const headers: Record<string, string> = {
-      "X-Mailer": "MailPilot-Google-Engine",
-      ...(options.tags?.reduce((acc, tag) => {
-        acc[`X-${tag.name}`] = tag.value;
-        return acc;
-      }, {} as Record<string, string>) || {}),
-    };
+    // Email Headers:
+    // Strip unnecessary automation headers (X-Mailer, X-Auto-Response-Suppress, X-campaign_id, X-workspace_id)
+    // to keep personal Gmail SMTP messages clean. Tracking is preserved in PostgreSQL logs.
+    const headers: Record<string, string> = {};
 
-    if (options.unsubscribeUrl) {
+    // Only inject List-Unsubscribe and List-Unsubscribe-Post headers when the unsubscribe URL
+    // is a valid, publicly reachable HTTPS URL (RFC 8058 requirement). Localhost/HTTP URLs are omitted from headers.
+    if (UnsubscribeService.isPublicHttpsUrl(options.unsubscribeUrl)) {
       headers["List-Unsubscribe"] = `<${options.unsubscribeUrl}>`;
       headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+    }
+
+    // Valid Reply-To handling
+    let replyToAddress: string | undefined = undefined;
+    if (options.replyTo && options.replyTo.includes("@")) {
+      replyToAddress = options.replyTo.trim();
     }
 
     try {
@@ -292,7 +388,7 @@ export class GmailSmtpProvider {
         subject: options.subject,
         html: finalHtml,
         text: plainText,
-        replyTo: options.replyTo || undefined,
+        replyTo: replyToAddress,
         headers,
       });
 
@@ -311,17 +407,22 @@ export class GmailSmtpProvider {
         success: false,
         error: sanitized.message,
         errorCode: sanitized.code,
+        isPermanentBounce: sanitized.isPermanentBounce,
+        isQuotaExceeded: sanitized.isQuotaExceeded,
+        isAuthFailure: sanitized.isAuthFailure,
         simulated: false,
       };
     }
   }
 
   /**
-   * Classify Nodemailer / Google SMTP error response codes safely without leaking credentials
+   * Classify Nodemailer / Google SMTP error response codes safely without leaking credentials.
+   * Identifies permanent hard bounces for automatic contact suppression.
    */
-  public static classifySmtpError(err: any): { code: string; message: string } {
+  public static classifySmtpError(err: any): ClassifiedSmtpError {
     const rawMessage = String(err?.message || "");
     const responseCode = err?.responseCode || err?.code;
+    const lowerMessage = rawMessage.toLowerCase();
 
     // 535: Authentication Failed (Invalid Google App Password or 2FA required)
     if (
@@ -334,20 +435,50 @@ export class GmailSmtpProvider {
         code: "AUTH_FAILED",
         message:
           "Gmail SMTP authentication failed. Please verify your 16-character Google App Password (2-Step Verification must be enabled on your Google Account).",
+        isPermanentBounce: false,
+        isQuotaExceeded: false,
+        isAuthFailure: true,
       };
     }
 
-    // 550 5.4.5: Daily sending quota exceeded
+    // 550 5.4.5 / 452: Daily sending quota exceeded
     if (
-      responseCode === 550 ||
-      rawMessage.includes("5.4.5") ||
-      rawMessage.toLowerCase().includes("daily sending quota exceeded") ||
-      rawMessage.toLowerCase().includes("user-sending quota")
+      responseCode === 550 &&
+      (rawMessage.includes("5.4.5") ||
+        lowerMessage.includes("daily sending quota exceeded") ||
+        lowerMessage.includes("user-sending quota"))
     ) {
       return {
         code: "QUOTA_EXCEEDED",
         message:
           "Google daily sending quota exceeded (500 emails/day for personal Gmail, 2,000/day for Google Workspace).",
+        isPermanentBounce: false,
+        isQuotaExceeded: true,
+        isAuthFailure: false,
+      };
+    }
+
+    // Permanent Hard Bounces (550 5.1.1, User Unknown, Mailbox not found, 553, 501)
+    if (
+      responseCode === 550 ||
+      responseCode === 551 ||
+      responseCode === 553 ||
+      responseCode === 554 ||
+      responseCode === 501 ||
+      lowerMessage.includes("5.1.1") ||
+      lowerMessage.includes("5.1.2") ||
+      lowerMessage.includes("user unknown") ||
+      lowerMessage.includes("mailbox unavailable") ||
+      lowerMessage.includes("recipient rejected") ||
+      lowerMessage.includes("does not exist") ||
+      lowerMessage.includes("no such user")
+    ) {
+      return {
+        code: "PERMANENT_BOUNCE",
+        message: `Recipient address was permanently rejected by destination server: ${rawMessage.substring(0, 120)}`,
+        isPermanentBounce: true,
+        isQuotaExceeded: false,
+        isAuthFailure: false,
       };
     }
 
@@ -356,20 +487,18 @@ export class GmailSmtpProvider {
       return {
         code: "CONNECTION_FAILED",
         message: `Failed to connect to Google SMTP host (${env.GMAIL_SMTP_HOST}:${env.GMAIL_SMTP_PORT}). Check network connectivity.`,
-      };
-    }
-
-    // Recipient address rejected (550 / 553 / 501)
-    if (responseCode === 550 || responseCode === 553 || responseCode === 501) {
-      return {
-        code: "RECIPIENT_REJECTED",
-        message: `Recipient address was rejected by SMTP server: ${rawMessage.substring(0, 120)}`,
+        isPermanentBounce: false,
+        isQuotaExceeded: false,
+        isAuthFailure: false,
       };
     }
 
     return {
       code: "SMTP_ERROR",
       message: this.sanitizeErrorMessage(err),
+      isPermanentBounce: false,
+      isQuotaExceeded: false,
+      isAuthFailure: false,
     };
   }
 

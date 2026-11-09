@@ -1,40 +1,56 @@
 import { useState, useRef, useEffect } from "react";
-import { useLocation, Link } from "react-router-dom";
-import { Menu, HelpCircle, ExternalLink, ChevronRight, BookOpen, Terminal, Sparkles } from "lucide-react";
-import { SearchInput } from "@/components/common/SearchInput";
+import { useLocation } from "react-router-dom";
+import { Menu, HelpCircle, Search, Moon, Sun, Globe } from "lucide-react";
 import { HealthStatusPill } from "./HealthStatusPill";
 import { NotificationMenu } from "./NotificationMenu";
 import { UserMenu } from "./UserMenu";
+import { CommandPalette } from "../common/CommandPalette";
+import { usePreferences, translations } from "@/lib/preferences";
 
 interface AppHeaderProps {
   onToggleMobileSidebar: () => void;
 }
 
-const pageTitleMap: Record<string, { title: string; breadcrumb: string }> = {
-  "/": { title: "Overview", breadcrumb: "Dashboard" },
-  "/dashboard": { title: "Overview", breadcrumb: "Dashboard" },
-  "/campaigns": { title: "Campaigns", breadcrumb: "Broadcasts" },
-  "/contacts": { title: "Contacts", breadcrumb: "Audience" },
-  "/templates": { title: "Templates", breadcrumb: "Design" },
-  "/schedule": { title: "Schedule Center", breadcrumb: "Timeline" },
-  "/analytics": { title: "Analytics", breadcrumb: "Reports" },
-  "/automations": { title: "Automation Builder", breadcrumb: "Workflows" },
-  "/settings": { title: "Settings", breadcrumb: "Workspace" },
+const pageTitleMap: Record<string, string> = {
+  "/": "Dashboard",
+  "/dashboard": "Dashboard",
+  "/campaigns": "Campaign Studio",
+  "/campaign-studio": "Campaign Studio",
+  "/reports": "Reports",
+  "/performance": "Reports",
+  "/analytics": "Reports",
+  "/contacts": "Contacts",
+  "/templates": "Campaign Studio",
+  "/schedule": "Schedule",
+  "/schedule-center": "Schedule",
+  "/automations": "Automations",
+  "/settings": "Settings",
 };
 
 export function AppHeader({ onToggleMobileSidebar }: AppHeaderProps) {
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
 
-  // Determine current page info
+  const { language, setLanguage, theme, toggleTheme } = usePreferences();
+  const t = translations[language];
+
+  // Determine current page title
   const path = location.pathname;
-  const pageInfo =
-    pageTitleMap[path] || {
-      title: path.replace("/", "").replace("-", " "),
-      breadcrumb: "MailPilot",
-    };
+  const pageTitle = pageTitleMap[path] || "MailPilot";
+
+  // Global Cmd+K / Ctrl+K listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -51,122 +67,131 @@ export function AppHeader({ onToggleMobileSidebar }: AppHeaderProps) {
   }, [isHelpOpen]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 sm:px-6 backdrop-blur-md">
-      {/* Left: Mobile Toggle & Page Breadcrumbs */}
-      <div className="flex items-center gap-3 min-w-0">
-        <button
-          type="button"
-          onClick={onToggleMobileSidebar}
-          className="flex lg:hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          aria-label="Open sidebar"
-        >
-          <Menu className="h-4 w-4" />
-        </button>
-
-        <div className="flex items-center gap-1.5 text-xs">
-          <Link
-            to="/"
-            className="text-slate-400 hover:text-slate-700 transition-colors hidden sm:inline"
-          >
-            MailPilot
-          </Link>
-          <ChevronRight className="h-3.5 w-3.5 text-slate-300 hidden sm:inline" />
-          <span className="text-slate-400 hidden sm:inline">{pageInfo.breadcrumb}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-slate-300 hidden sm:inline" />
-          <span className="font-semibold text-slate-900 truncate">
-            {pageInfo.title}
-          </span>
-        </div>
-      </div>
-
-      {/* Right Controls: Search, Live Health, Notifications, Help, User Menu */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Search Bar */}
-        <div className="w-36 sm:w-56 md:w-64">
-          <SearchInput
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onClear={() => setSearchQuery("")}
-            placeholder="Search campaigns, contacts..."
-          />
-        </div>
-
-        {/* Live API / DB / Redis Status Pill */}
-        <HealthStatusPill />
-
-        {/* Notifications Popover */}
-        <NotificationMenu />
-
-        {/* Help & Resources Popover */}
-        <div className="relative" ref={helpRef}>
+    <>
+      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 sm:px-6 backdrop-blur-md">
+        {/* Left: Mobile Toggle & Clean Page Title */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            onClick={() => setIsHelpOpen(!isHelpOpen)}
-            className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            aria-label="Help and resources"
+            onClick={onToggleMobileSidebar}
+            className="flex lg:hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            aria-label="Open sidebar"
           >
-            <HelpCircle className="h-4 w-4" />
+            <Menu className="h-4 w-4" />
           </button>
 
-          {isHelpOpen && (
-            <div className="absolute right-0 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left">
-              <div className="pb-2 border-b border-slate-100">
-                <p className="text-xs font-semibold text-slate-900">
-                  Help & Documentation
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Guides, API references, and keyboard shortcuts.
-                </p>
-              </div>
-
-              <div className="py-2 space-y-1">
-                <a
-                  href="#docs"
-                  onClick={() => setIsHelpOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100/70 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>Getting Started Guide</span>
-                  </div>
-                  <ExternalLink className="h-3 w-3 text-slate-400" />
-                </a>
-
-                <a
-                  href="#api"
-                  onClick={() => setIsHelpOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100/70 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Terminal className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>API Reference & Webhooks</span>
-                  </div>
-                  <ExternalLink className="h-3 w-3 text-slate-400" />
-                </a>
-
-                <a
-                  href="#features"
-                  onClick={() => setIsHelpOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100/70 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>What's new in MailPilot</span>
-                  </div>
-                  <ExternalLink className="h-3 w-3 text-slate-400" />
-                </a>
-              </div>
-
-              <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400">
-                Need priority help? Reach out at support@mailpilot.io
-              </div>
-            </div>
-          )}
+          <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 truncate">
+            {pageTitle}
+          </h1>
         </div>
 
-        {/* User Account Menu */}
-        <UserMenu />
-      </div>
-    </header>
+        {/* Right Controls: Quick Search Bar, Health Warning, Language, Dark Mode, Notifications, User Menu */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Quick Search with Cmd+K trigger */}
+          <button
+            type="button"
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="flex items-center gap-2 h-9 px-3 w-36 sm:w-56 md:w-64 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-white transition-all text-xs text-left"
+          >
+            <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="truncate flex-1">{t.searchPlaceholder}</span>
+            <kbd className="hidden sm:inline-flex items-center rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Genuine Service Notice (only visible if there is an error) */}
+          <HealthStatusPill />
+
+          {/* Language Selector (EN / HI) */}
+          <button
+            type="button"
+            onClick={() => setLanguage(language === "en" ? "hi" : "en")}
+            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors text-xs font-medium flex items-center gap-1"
+            title="Toggle Language: English / हिन्दी"
+            aria-label="Toggle language"
+          >
+            <Globe className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-[11px] uppercase">{language}</span>
+          </button>
+
+          {/* Dark Mode Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+            aria-label="Toggle dark mode"
+          >
+            {theme === "light" ? (
+              <Moon className="h-3.5 w-3.5" />
+            ) : (
+              <Sun className="h-3.5 w-3.5 text-amber-500" />
+            )}
+          </button>
+
+          {/* Notifications Popover */}
+          <NotificationMenu />
+
+          {/* Help & Support Popover */}
+          <div className="relative" ref={helpRef}>
+            <button
+              type="button"
+              onClick={() => setIsHelpOpen(!isHelpOpen)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              aria-label="Help and resources"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+
+            {isHelpOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left">
+                <div className="pb-2 border-b border-slate-100">
+                  <p className="text-xs font-semibold text-slate-900">
+                    Help & Support
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tips and keyboard shortcuts.
+                  </p>
+                </div>
+
+                <div className="py-2 space-y-1.5 text-xs text-slate-600">
+                  <div className="flex items-center justify-between py-1">
+                    <span>Command Palette</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] text-slate-600">
+                      ⌘K / Ctrl+K
+                    </kbd>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span>Close any modal</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] text-slate-600">
+                      Esc
+                    </kbd>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <a
+                    href="mailto:support@mailpilot.io"
+                    className="block text-center text-xs text-indigo-600 font-medium hover:underline py-1"
+                  >
+                    Contact Support
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Account Menu */}
+          <UserMenu />
+        </div>
+      </header>
+
+      {/* Global Command Palette */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+      />
+    </>
   );
 }

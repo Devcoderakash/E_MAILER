@@ -284,32 +284,20 @@ export function SettingsPage() {
               <p className="text-slate-500 mt-0.5">Identify your team and organization.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-slate-700 font-medium mb-1.5">Workspace Name</label>
-                <input
-                  type="text"
-                  value={workspaceName}
-                  onChange={(e) => setWorkspaceName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-medium mb-1.5">Workspace Slug</label>
-                <input
-                  type="text"
-                  value={activeWorkspace?.slug || "workspace"}
-                  disabled
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 font-mono"
-                />
-              </div>
+            <div>
+              <label className="block text-slate-700 font-medium mb-1.5">Workspace Name</label>
+              <input
+                type="text"
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
+                required
+              />
             </div>
 
             <div className="border-b border-slate-100 pt-3 pb-3">
               <h3 className="font-semibold text-sm text-slate-900">Your Personal Profile</h3>
-              <p className="text-slate-500 mt-0.5">Manage how your name appears to team members.</p>
+              <p className="text-slate-500 mt-0.5">Manage how your name appears in your workspace.</p>
             </div>
 
             <div className="flex items-center gap-4">
@@ -323,7 +311,7 @@ export function SettingsPage() {
                     type="text"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    placeholder="Jane Doe"
+                    placeholder="Your Full Name"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-indigo-600"
                   />
                 </div>
@@ -333,7 +321,7 @@ export function SettingsPage() {
                     type="email"
                     value={user?.email || ""}
                     disabled
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 font-mono"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
                   />
                 </div>
               </div>

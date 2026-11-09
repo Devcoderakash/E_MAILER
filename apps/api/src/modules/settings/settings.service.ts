@@ -13,6 +13,20 @@ export interface SmtpConfigInput {
   secure?: boolean;
 }
 
+export class TestEmailRateLimitError extends Error {
+  public remainingSeconds: number;
+  constructor(remainingSeconds: number) {
+    super(`Please wait ${remainingSeconds} seconds before sending another test email to protect your sender reputation.`);
+    this.name = "TestEmailRateLimitError";
+    this.remainingSeconds = remainingSeconds;
+  }
+}
+
+// Memory rate limit and in-flight tracking for test emails
+const testEmailCooldowns = new Map<string, number>();
+const testEmailInFlight = new Set<string>();
+const TEST_EMAIL_COOLDOWN_MS = 10000; // 10 seconds between test sends per workspace
+
 export class SettingsService {
   /**
    * Get SMTP configuration status for workspace
@@ -167,7 +181,20 @@ export class SettingsService {
   }
 
   /**
-   * Send a real test email via Gmail SMTP
+   * Reset rate limit state (primarily for automated test environments)
+   */
+  public static resetTestEmailRateLimits(workspaceId?: string) {
+    if (workspaceId) {
+      testEmailCooldowns.delete(workspaceId);
+      testEmailInFlight.delete(workspaceId);
+    } else {
+      testEmailCooldowns.clear();
+      testEmailInFlight.clear();
+    }
+  }
+
+  /**
+   * Send a real test email via Gmail SMTP with rate limiting and duplicate send protection
    */
   public static async sendTestEmail(workspaceId: string, toEmail: string, customCreds?: SmtpConfigInput) {
     const cleanTo = toEmail?.trim();
@@ -175,52 +202,84 @@ export class SettingsService {
       throw new Error("A valid recipient email address is required.");
     }
 
-    // Resolve sender credentials
-    let senderEmail = env.GMAIL_SMTP_USER || "noreply@mailpilot.io";
-    let senderName = env.GMAIL_SENDER_NAME || "MailPilot";
-
-    if (customCreds?.user) {
-      senderEmail = customCreds.user;
-      senderName = customCreds.senderName || senderName;
-    } else {
-      const existing = await prisma.workspaceSmtpConfig.findUnique({
-        where: { workspaceId },
-      });
-      if (existing) {
-        senderEmail = existing.user;
-        senderName = existing.senderName;
-      }
+    // 1. In-flight Lock: Prevent concurrent duplicate test sends
+    if (testEmailInFlight.has(workspaceId)) {
+      throw new Error("A test email is already being sent for this workspace. Please wait a moment.");
     }
 
-    const testSubject = `[MailPilot] Live Gmail SMTP Delivery Test — ${new Date().toLocaleTimeString()}`;
-    const testHtml = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h2 style="color: #4f46e5; margin-top: 0;">MailPilot SMTP Verification Successful</h2>
-        <p style="color: #334155; font-size: 16px; line-height: 1.6;">
-          Congratulations! Your Google SMTP delivery connection is configured correctly and operational.
-        </p>
-        <div style="background-color: #f8fafc; border-left: 4px solid #10b981; padding: 12px 16px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #0f172a;"><strong>Authenticated Sender:</strong> ${senderEmail}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #0f172a;"><strong>Recipient:</strong> ${cleanTo}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #0f172a;"><strong>Dispatched At:</strong> ${new Date().toISOString()}</p>
-        </div>
-        <p style="color: #64748b; font-size: 13px;">
-          This email was sent via Gmail SMTP through MailPilot's Google Engine.
-        </p>
-      </div>
-    `;
+    // 2. Rate Limiting: Prevent rapid-fire test sends that trigger Google SMTP burst flags
+    const now = Date.now();
+    const lastSent = testEmailCooldowns.get(workspaceId);
+    if (lastSent && now - lastSent < TEST_EMAIL_COOLDOWN_MS) {
+      const remainingSeconds = Math.ceil((TEST_EMAIL_COOLDOWN_MS - (now - lastSent)) / 1000);
+      throw new TestEmailRateLimitError(remainingSeconds);
+    }
 
-    const sendResult = await GmailSmtpProvider.send({
-      to: cleanTo,
-      fromName: senderName,
-      fromEmail: senderEmail,
-      subject: testSubject,
-      html: testHtml,
-      workspaceId,
-      preheader: "Your Google SMTP delivery connection is working perfectly.",
-    });
+    testEmailInFlight.add(workspaceId);
 
-    return sendResult;
+    try {
+      // Resolve sender credentials
+      let senderEmail = env.GMAIL_SMTP_USER || "noreply@mailpilot.io";
+      let senderName = env.GMAIL_SENDER_NAME || "MailPilot";
+
+      if (customCreds?.user) {
+        senderEmail = customCreds.user;
+        senderName = customCreds.senderName || senderName;
+      } else {
+        const existing = await prisma.workspaceSmtpConfig.findUnique({
+          where: { workspaceId },
+        });
+        if (existing) {
+          senderEmail = existing.user;
+          senderName = existing.senderName;
+        }
+      }
+
+      // Natural, concise test email content without spam trigger words (no "Congratulations!", no "Google Engine")
+      const testSubject = `MailPilot test message`;
+      const testHtml = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; color: #1e293b; line-height: 1.6; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+  <p style="margin-top: 0; font-size: 16px; font-weight: 600; color: #0f172a;">MailPilot Delivery Test</p>
+  <p>Hello,</p>
+  <p>This is a quick test email to verify that your email delivery configuration is working properly.</p>
+  <div style="background-color: #f8fafc; border-radius: 6px; padding: 12px 16px; margin: 20px 0; font-size: 13px; color: #475569; border-left: 3px solid #6366f1;">
+    <div style="margin-bottom: 4px;"><strong>Sender:</strong> ${senderEmail}</div>
+    <div><strong>Recipient:</strong> ${cleanTo}</div>
+  </div>
+  <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">
+    If you received this message, your SMTP settings are configured correctly.
+  </p>
+</div>`;
+
+      const testText = `MailPilot Delivery Test
+
+Hello,
+
+This is a quick test email to verify that your email delivery configuration is working properly.
+
+Sender: ${senderEmail}
+Recipient: ${cleanTo}
+
+If you received this message, your SMTP settings are configured correctly.`;
+
+      const sendResult = await GmailSmtpProvider.send({
+        to: cleanTo,
+        fromName: senderName,
+        fromEmail: senderEmail,
+        subject: testSubject,
+        html: testHtml,
+        text: testText,
+        workspaceId,
+        preheader: "Delivery test from your MailPilot account.",
+      });
+
+      // Update cooldown timestamp upon send attempt
+      testEmailCooldowns.set(workspaceId, Date.now());
+
+      return sendResult;
+    } finally {
+      testEmailInFlight.delete(workspaceId);
+    }
   }
 
   /**

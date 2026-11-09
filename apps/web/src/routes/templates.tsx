@@ -15,6 +15,7 @@ import {
   Loader2,
   X,
   Layers,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, EmptyState, SearchInput } from "@/components/common";
@@ -31,7 +32,12 @@ import {
   getStarterHTML,
 } from "@/features/templates";
 
-export function TemplatesPage() {
+interface TemplatesPageProps {
+  onUseInCampaign?: (template: EmailTemplate) => void;
+  hideHeader?: boolean;
+}
+
+export function TemplatesPage({ onUseInCampaign, hideHeader }: TemplatesPageProps = {}) {
   const queryClient = useQueryClient();
   const { activeWorkspace } = useAuthStore();
 
@@ -537,33 +543,56 @@ export function TemplatesPage() {
         </div>
       )}
 
-      {/* Header */}
-      <PageHeader
-        title="Email Template Studio"
-        description="Design responsive email templates with visual drag-and-drop blocks, raw HTML mode, and dynamic merge tags."
-        badge={
-          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
-            {totalTemplates} Templates
-          </span>
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => {
-                setNewTemplateName("");
-                setNewTemplateDesc("");
-                setNewTemplateCategory("MARKETING");
-                setSelectedStarterIdx(0);
-                setIsNewModalOpen(true);
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-1.5 text-xs h-9 px-3.5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Template
-            </Button>
+      {/* Header (conditionally hidden in unified Campaign Studio) */}
+      {!hideHeader ? (
+        <PageHeader
+          title="Email Template Studio"
+          description="Design responsive email templates with visual drag-and-drop blocks, raw HTML mode, and dynamic merge tags."
+          badge={
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
+              {totalTemplates} Templates
+            </span>
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  setNewTemplateName("");
+                  setNewTemplateDesc("");
+                  setNewTemplateCategory("MARKETING");
+                  setSelectedStarterIdx(0);
+                  setIsNewModalOpen(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-1.5 text-xs h-9 px-3.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Template
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <div className="flex items-center justify-between pb-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Template Library</h3>
+            <p className="text-xs text-slate-500">Pick from existing designs or start with a pre-built starter.</p>
           </div>
-        }
-      />
+          <Button
+            size="sm"
+            onClick={() => {
+              setNewTemplateName("");
+              setNewTemplateDesc("");
+              setNewTemplateCategory("MARKETING");
+              setSelectedStarterIdx(0);
+              setIsNewModalOpen(true);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm gap-1.5 text-xs h-8 px-3"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Template
+          </Button>
+        </div>
+      )}
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -742,6 +771,17 @@ export function TemplatesPage() {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    {onUseInCampaign && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onUseInCampaign(tpl)}
+                        className="h-7 px-2.5 text-xs text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 border-indigo-200 font-semibold gap-1 mr-1 shadow-xs"
+                      >
+                        <Send className="h-3 w-3 text-indigo-600" />
+                        Use in Campaign
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

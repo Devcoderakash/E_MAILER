@@ -4,7 +4,6 @@ import {
   Calendar as CalendarIcon,
   Clock,
   Plus,
-  Cpu,
   ChevronLeft,
   ChevronRight,
   Globe,
@@ -20,7 +19,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatusBadge, EmptyState, SearchInput } from "@/components/common";
-import { useHealth } from "@/hooks/use-health";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 import { api } from "@/lib/api-client";
 import {
@@ -40,16 +38,9 @@ import type {
 export function ScheduleCenterPage() {
   const queryClient = useQueryClient();
   const { activeWorkspace } = useAuthStore();
-  const { data: health } = useHealth();
 
   // Active Timezone selection (auto-detects browser timezone)
   const [selectedTimezone, setSelectedTimezone] = useState<string>(() => getBrowserTimezone());
-
-  const { data: calendarStatus } = useQuery({
-    queryKey: ["calendar-status", activeWorkspace?.id],
-    queryFn: () => api.getCalendarStatus(),
-    enabled: Boolean(activeWorkspace?.id),
-  });
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [statusFilter, setStatusFilter] = useState<"all" | "SCHEDULED" | "SENT" | "DRAFT">("all");
   const [timelineSearch, setTimelineSearch] = useState("");
@@ -76,10 +67,6 @@ export function ScheduleCenterPage() {
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
-
-  const isRedisConnected =
-    health?.dependencies?.redis === "connected" ||
-    health?.services?.redis?.status === "connected";
 
   // Calculate calendar month start and end dates
   const calendarRange = useMemo(() => {
@@ -314,8 +301,8 @@ export function ScheduleCenterPage() {
 
       {/* Page Header */}
       <PageHeader
-        title="Schedule Center"
-        description="Automate, plan, and calendarize broadcast dispatches with timezone-aware BullMQ delayed workers."
+        title="Schedule"
+        description="Plan and view your upcoming email broadcasts."
         badge={
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
             {upcomingCount} Upcoming
@@ -350,117 +337,51 @@ export function ScheduleCenterPage() {
         }
       />
 
-      {/* Google Calendar Status Ribbon */}
-      {calendarStatus?.connected ? (
-        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-blue-50/70 border border-blue-200/80 text-blue-900 text-xs shadow-2xs">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-blue-600" />
-            <span>
-              Google Calendar Sync <strong>Active</strong> &middot; Events sync automatically to{" "}
-              <span className="font-mono text-blue-950 font-medium">{calendarStatus.googleEmail}</span>
-            </span>
-          </div>
-          <a
-            href="/settings?tab=google"
-            className="text-[11px] text-blue-700 hover:text-blue-900 underline font-medium"
+      {/* View Switcher & Timezone Toolbar */}
+      <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* View Mode Toggle */}
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode("timeline")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
+              viewMode === "timeline"
+                ? "bg-white text-slate-900 shadow-2xs"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
           >
-            Manage Settings
-          </a>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs shadow-2xs">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-slate-400" />
-            <span>Sync MailPilot dispatch schedules directly to your team's Google Calendar.</span>
-          </div>
-          <a
-            href="/settings?tab=google"
-            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold underline"
+            <Clock className="h-3.5 w-3.5" />
+            Timeline View
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("calendar")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
+              viewMode === "calendar"
+                ? "bg-white text-slate-900 shadow-2xs"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
           >
-            Connect Google Calendar &rarr;
-          </a>
-        </div>
-      )}
-
-      {/* BullMQ Engine & Timezone Bar */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        {/* Left: Engine Health */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
-            <Cpu className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-900">
-                BullMQ Delayed Scheduler Engine
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
-                  isRedisConnected
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-slate-100 text-slate-600 border-slate-200"
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    isRedisConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                  }`}
-                />
-                {isRedisConnected ? "Worker Synchronized" : "Standby"}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Delayed Redis queue with startup reconciliation and deterministic job IDs.
-            </p>
-          </div>
+            <CalendarIcon className="h-3.5 w-3.5" />
+            Calendar Month
+          </button>
         </div>
 
-        {/* Right: Timezone Selector & View Switcher */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Timezone Selector */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1 text-xs">
-            <Globe className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-500 font-medium">Timezone:</span>
-            <select
-              value={selectedTimezone}
-              onChange={(e) => setSelectedTimezone(e.target.value)}
-              className="bg-transparent border-none text-slate-900 font-semibold text-xs focus:ring-0 cursor-pointer pr-4"
-            >
-              {POPULAR_TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
-                viewMode === "timeline"
-                  ? "bg-white text-slate-900 shadow-2xs"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              Timeline
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("calendar")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
-                viewMode === "calendar"
-                  ? "bg-white text-slate-900 shadow-2xs"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              <CalendarIcon className="h-3.5 w-3.5" />
-              Calendar
-            </button>
-          </div>
+        {/* Timezone Selector */}
+        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1 text-xs">
+          <Globe className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+          <span className="text-slate-500 font-medium">Timezone:</span>
+          <select
+            value={selectedTimezone}
+            onChange={(e) => setSelectedTimezone(e.target.value)}
+            className="bg-transparent border-none text-slate-900 font-semibold text-xs focus:ring-0 cursor-pointer pr-4"
+          >
+            {POPULAR_TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -876,7 +797,7 @@ export function ScheduleCenterPage() {
                   Unschedule Campaign?
                 </h3>
                 <p className="text-xs text-slate-500">
-                  This will cancel the BullMQ delayed execution job in Redis.
+                  This will cancel the scheduled broadcast for this campaign.
                 </p>
               </div>
             </div>

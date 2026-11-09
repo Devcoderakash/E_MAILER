@@ -11,9 +11,8 @@ import {
 import { DashboardOverviewPage } from "./dashboard";
 import { CampaignsPage } from "./campaigns";
 import { ContactsPage } from "./contacts";
-import { TemplatesPage } from "./templates";
 import { ScheduleCenterPage } from "./schedule";
-import { AnalyticsPage } from "./analytics";
+import { PerformancePage } from "./performance";
 import { AutomationBuilderPage } from "./automations";
 import { SettingsPage } from "./settings";
 
@@ -27,7 +26,7 @@ export function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* Auth Callback and Recovery Routes (Accessible with or without session) */}
+      {/* Auth Callback and Recovery Routes */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
 
@@ -37,11 +36,15 @@ export function AppRoutes() {
           <Route path="/" element={<DashboardOverviewPage />} />
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/campaign-studio" element={<Navigate to="/campaigns" replace />} />
           <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/templates" element={<Navigate to="/campaigns?tab=templates" replace />} />
           <Route path="/schedule" element={<ScheduleCenterPage />} />
           <Route path="/schedule-center" element={<Navigate to="/schedule" replace />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
+          {/* Reports: Canonical route replacing Performance and Analytics */}
+          <Route path="/reports" element={<PerformancePage />} />
+          <Route path="/performance" element={<Navigate to="/reports" replace />} />
+          <Route path="/analytics" element={<Navigate to="/reports" replace />} />
           <Route path="/automations" element={<AutomationBuilderPage />} />
           <Route path="/automation-builder" element={<Navigate to="/automations" replace />} />
           <Route path="/settings" element={<SettingsPage />} />

@@ -556,8 +556,8 @@ export function ContactsPage() {
 
       {/* Header */}
       <PageHeader
-        title="Contacts & Audiences"
-        description="Manage your subscriber lists, segments, and contact properties with strict workspace isolation."
+        title="Contacts"
+        description="Manage your subscriber contacts, lists, and tags."
         badge={
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 border border-slate-200">
             {stats ? stats.total.toLocaleString() : totalContacts} Total
@@ -869,7 +869,7 @@ export function ContactsPage() {
                               </span>
                             ))}
                             {tagItems.length === 0 && listItems.length === 0 && (
-                              <span className="text-slate-400 text-[11px]">—</span>
+                              <span className="text-slate-400 text-[11px] italic">No lists or tags</span>
                             )}
                           </div>
                         </td>

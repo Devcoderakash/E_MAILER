@@ -3,7 +3,10 @@ import { env } from "../config/env";
 
 // Ensure a 32-byte key using sha256 of the configured secret
 const getEncryptionKey = (): Buffer => {
-  const secretKey = env.TOKEN_ENCRYPTION_KEY || env.ENCRYPTION_KEY;
+  const secretKey =
+    env.CREDENTIAL_ENCRYPTION_KEY ||
+    env.TOKEN_ENCRYPTION_KEY ||
+    env.ENCRYPTION_KEY;
   return crypto.createHash("sha256").update(secretKey).digest();
 };
 

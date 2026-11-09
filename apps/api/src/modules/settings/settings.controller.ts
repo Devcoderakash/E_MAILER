@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { SettingsService } from "./settings.service";
+import { SettingsService, TestEmailRateLimitError } from "./settings.service";
 
 export class SettingsController {
   public static async getSmtpConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -89,6 +89,24 @@ export class SettingsController {
 
       res.json(result);
     } catch (err: any) {
+      if (err instanceof TestEmailRateLimitError) {
+        res.status(429).json({
+          success: false,
+          error: err.message,
+          rateLimited: true,
+          retryAfter: err.remainingSeconds,
+        });
+        return;
+      }
+
+      if (err.message && err.message.includes("already being sent")) {
+        res.status(409).json({
+          success: false,
+          error: err.message,
+        });
+        return;
+      }
+
       res.status(500).json({ success: false, error: err.message || "Failed to send test email." });
     }
   }
