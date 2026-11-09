@@ -7,8 +7,9 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"cyan,magenta\" \"pnpm --filter @mailpilot/api dev\" \"pnpm --filter @mailpilot/web dev\"",
     "dev:api": "pnpm --filter @mailpilot/api dev",
     "dev:web": "pnpm --filter @mailpilot/web dev",
-    "build": "pnpm --filter @mailpilot/api build && pnpm --filter @mailpilot/web build",
-    "build:api": "pnpm --filter @mailpilot/api build",
+    "start": "pnpm --filter @mailpilot/api start",
+    "build": "pnpm --filter @mailpilot/api prisma:generate && pnpm --filter @mailpilot/api build && pnpm --filter @mailpilot/web build",
+    "build:api": "pnpm --filter @mailpilot/api prisma:generate && pnpm --filter @mailpilot/api build",
     "build:web": "pnpm --filter @mailpilot/web build",
     "typecheck": "pnpm --filter @mailpilot/api typecheck && pnpm --filter @mailpilot/web typecheck",
     "test:queue": "pnpm --filter @mailpilot/api test:queue"
