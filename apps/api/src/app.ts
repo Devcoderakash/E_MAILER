@@ -155,7 +155,17 @@ export function createApp(): Application {
   const webDistPath = possibleDistPaths.find((p) => fs.existsSync(p));
 
   if (webDistPath) {
-    app.use(express.static(webDistPath));
+    app.use(
+      express.static(webDistPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith("index.html")) {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.setHeader("Pragma", "no-cache");
+            res.setHeader("Expires", "0");
+          }
+        },
+      })
+    );
 
     app.get("*", (req: Request, res: Response, next: NextFunction) => {
       if (
@@ -165,6 +175,9 @@ export function createApp(): Application {
       ) {
         return next();
       }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(webDistPath, "index.html"));
     });
   }

@@ -1,0 +1,7 @@
+<svg width="240" height="48" viewBox="0 0 240 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 5: The Continuous MP Monogram -->
+  <path d="M7 35 V14 L16 23.5 L25 14 V35 M25 24 H33 C36.3 24 39 21.3 39 18 C39 14.7 36.3 12 33 12 H25" stroke="#4F46E5" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="54" y="31" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="600" letter-spacing="-0.02em">
+    <tspan fill="#0F172A">Mail</tspan><tspan fill="#4F46E5">Pilot</tspan>
+  </text>
+</svg>

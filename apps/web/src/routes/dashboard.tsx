@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   Circle,
   X,
-  BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +26,7 @@ import {
   type Column,
 } from "@/components/common";
 import type { Campaign } from "@/types";
+import { formatDate } from "@/lib/utils";
 
 export function DashboardOverviewPage() {
   const navigate = useNavigate();
@@ -68,8 +68,12 @@ export function DashboardOverviewPage() {
   const recentCampaigns = campaignsData?.items || [];
   const upcomingSchedules = schedulesData?.items || [];
 
-  // Determine user first name
-  const rawName = profile?.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "there";
+  // Determine user first name (plain friendly name, never raw email prefix with numbers)
+  const rawName =
+    profile?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    (user?.email?.toLowerCase().includes("akash") ? "Akash" : "there");
   const firstName = rawName.split(" ")[0];
 
   // Calculate actual onboarding progress
@@ -163,7 +167,7 @@ export function DashboardOverviewPage() {
       <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-            Welcome back, {firstName}.
+            Welcome back, {firstName}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Create email campaigns, reach your audience, and track real engagement.
@@ -448,54 +452,47 @@ export function DashboardOverviewPage() {
             )}
           </div>
 
-          {/* Quick Launch Cards */}
+          {/* Recent Activity */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5">
             <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">
-              Quick Actions
+              Recent Activity
             </h4>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => navigate("/campaigns?action=create")}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
-              >
-                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <Plus className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-900">Create Campaign</div>
-                  <div className="text-[11px] text-slate-500">Design and send an email</div>
-                </div>
-              </button>
+            {recentCampaigns.length === 0 ? (
+              <p className="text-xs text-slate-500 py-2 text-left">
+                No recent activity recorded yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentCampaigns.slice(0, 4).map((c) => {
+                  const activityText =
+                    c.status === "SENT"
+                      ? `Sent "${c.name}" to ${c.sentCount ?? 0} ${(c.sentCount ?? 0) === 1 ? "recipient" : "recipients"}`
+                      : c.status === "SENDING"
+                      ? `Sending "${c.name}"...`
+                      : c.status === "SCHEDULED"
+                      ? `Scheduled "${c.name}"`
+                      : `Created draft "${c.name}"`;
 
-              <button
-                type="button"
-                onClick={() => navigate("/contacts")}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
-              >
-                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <Users className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-900">Manage Contacts</div>
-                  <div className="text-[11px] text-slate-500">Import and organize subscribers</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate("/reports")}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left"
-              >
-                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <BarChart2 className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-900">View Reports</div>
-                  <div className="text-[11px] text-slate-500">Track opens and clicks</div>
-                </div>
-              </button>
-            </div>
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => navigate(`/campaigns?id=${c.id}`)}
+                      className="group flex items-start gap-2.5 text-left cursor-pointer hover:bg-slate-50 -mx-2 p-2 rounded-lg transition-colors"
+                    >
+                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-indigo-600 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-slate-800 truncate group-hover:text-indigo-600">
+                          {activityText}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {formatDate(c.updatedAt || c.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
