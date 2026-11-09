@@ -537,28 +537,28 @@ export function CampaignsPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {/* Send if draft or failed */}
-                          {(camp.status === "DRAFT" || camp.status === "FAILED") && (
+                          {/* Send if draft, failed, or cancelled */}
+                          {(camp.status === "DRAFT" || camp.status === "FAILED" || camp.status === "CANCELLED") && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setCampaignToSend(camp)}
                               className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                              title={camp.status === "FAILED" ? "Retry Campaign" : "Send Campaign"}
+                              title={camp.status === "FAILED" || camp.status === "CANCELLED" ? "Retry Campaign" : "Send Campaign"}
                             >
                               <Play className="h-3.5 w-3.5 mr-1" />
-                              {camp.status === "FAILED" ? "Retry" : "Send"}
+                              {camp.status === "DRAFT" ? "Send" : "Retry"}
                             </Button>
                           )}
 
-                          {/* Cancel if scheduled */}
-                          {camp.status === "SCHEDULED" && (
+                          {/* Cancel if scheduled or queued */}
+                          {(camp.status === "SCHEDULED" || camp.status === "QUEUED") && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setCampaignToCancel(camp)}
                               className="h-8 px-2 text-xs text-amber-600 hover:bg-amber-50"
-                              title="Cancel Schedule"
+                              title={camp.status === "QUEUED" ? "Cancel Queue" : "Cancel Schedule"}
                             >
                               <RotateCcw className="h-3.5 w-3.5 mr-1" />
                               Cancel
@@ -1279,9 +1279,13 @@ export function CampaignsPage() {
       {campaignToCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Cancel Schedule</h3>
+            <h3 className="text-sm font-bold text-slate-900">
+              {campaignToCancel.status === "QUEUED" ? "Cancel Campaign" : "Cancel Schedule"}
+            </h3>
             <p className="text-xs text-slate-600">
-              Cancel the scheduled send for "{campaignToCancel.name}"? It will revert back to a draft.
+              {campaignToCancel.status === "QUEUED"
+                ? `Cancel sending "${campaignToCancel.name}"? It will revert back to a draft.`
+                : `Cancel the scheduled send for "${campaignToCancel.name}"? It will revert back to a draft.`}
             </p>
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button

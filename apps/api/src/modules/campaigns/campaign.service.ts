@@ -663,6 +663,85 @@ export class CampaignService {
   }
 
   /**
+   * Reconcile any orphaned QUEUED or in-flight SENDING campaigns on server startup
+   */
+  static async reconcileOrphanedCampaigns() {
+    try {
+      const orphanedCampaigns = await prisma.campaign.findMany({
+        where: {
+          status: {
+            in: [CampaignStatus.QUEUED, CampaignStatus.SENDING],
+          },
+        },
+        include: {
+          recipients: {
+            where: {
+              status: {
+                in: [CampaignRecipientStatus.PENDING, CampaignRecipientStatus.PROCESSING],
+              },
+            },
+            select: { id: true },
+          },
+        },
+      });
+
+      for (const camp of orphanedCampaigns) {
+        if (camp.recipients.length === 0) {
+          const sent = await prisma.campaignRecipient.count({
+            where: {
+              campaignId: camp.id,
+              status: { in: [CampaignRecipientStatus.SENT, CampaignRecipientStatus.DELIVERED] },
+            },
+          });
+          await prisma.campaign.update({
+            where: { id: camp.id },
+            data: {
+              status: sent > 0 ? CampaignStatus.SENT : CampaignStatus.FAILED,
+              completedAt: new Date(),
+            },
+          });
+          continue;
+        }
+
+        // Reset any hanging PROCESSING recipients back to PENDING
+        await prisma.campaignRecipient.updateMany({
+          where: {
+            campaignId: camp.id,
+            status: CampaignRecipientStatus.PROCESSING,
+          },
+          data: {
+            status: CampaignRecipientStatus.PENDING,
+          },
+        });
+
+        const pendingRecipientIds = camp.recipients.map((r) => r.id);
+        const totalBatches = Math.ceil(pendingRecipientIds.length / BATCH_SIZE);
+
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const batchRecipientIds = pendingRecipientIds.slice(
+            batchIndex * BATCH_SIZE,
+            (batchIndex + 1) * BATCH_SIZE
+          );
+
+          await addCampaignDispatchJob({
+            campaignId: camp.id,
+            workspaceId: camp.workspaceId,
+            recipientIds: batchRecipientIds,
+            batchIndex,
+            totalBatches,
+          });
+        }
+
+        console.log(
+          `[CampaignService] Reconciled and re-enqueued orphaned campaign "${camp.name}" (${camp.id}) with ${pendingRecipientIds.length} pending recipients.`
+        );
+      }
+    } catch (err: any) {
+      console.error("[CampaignService] Startup reconciliation error:", err.message);
+    }
+  }
+
+  /**
    * Cancel an in-flight or queued campaign
    */
   static async cancelCampaign(workspaceId: string, campaignId: string) {

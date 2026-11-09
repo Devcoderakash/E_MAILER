@@ -6,6 +6,7 @@ import { createCampaignWorker } from "./workers/campaign.worker";
 import { createWebhookWorker } from "./workers/webhook.worker";
 import { createAutomationWorker } from "./workers/automation.worker";
 import { ScheduleService } from "./modules/schedules/schedule.service";
+import { CampaignService } from "./modules/campaigns/campaign.service";
 
 const app = createApp();
 
@@ -20,6 +21,11 @@ const server = app.listen(env.PORT, () => {
   // Reconcile scheduled campaigns in PostgreSQL with delayed jobs in BullMQ on startup
   ScheduleService.reconcileScheduledJobs().catch((err: any) => {
     console.error("❌ [ScheduleService] Startup reconciliation error:", err.message);
+  });
+
+  // Reconcile and resume any orphaned QUEUED or SENDING campaigns on startup
+  CampaignService.reconcileOrphanedCampaigns().catch((err: any) => {
+    console.error("❌ [CampaignService] Startup reconciliation error:", err.message);
   });
 });
 

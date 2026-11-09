@@ -56,7 +56,8 @@ export function getScheduledJobId(campaignId: string): string {
 }
 
 export async function addCampaignDispatchJob(data: CampaignDispatchJobData) {
-  const jobId = `campaign_${data.campaignId}_batch_${data.batchIndex}`;
+  // Use timestamp and random nonce so re-sends and retries are never silently deduplicated by BullMQ
+  const jobId = `campaign_${data.campaignId}_batch_${data.batchIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   return await campaignQueue.add("dispatch-batch", data, {
     jobId,
   });
