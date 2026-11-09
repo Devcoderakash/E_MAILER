@@ -1,6 +1,8 @@
 import express, { Application, Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
 import { env } from "./config/env";
 import { checkRedisHealth } from "./config/redis";
 import { checkDatabaseHealth } from "./config/database";
@@ -26,7 +28,7 @@ export function createApp(): Application {
   const app = express();
 
   // Security Headers
-  app.use(helmet());
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   // CORS Configuration
   const allowedOrigins = [
@@ -139,7 +141,26 @@ export function createApp(): Application {
   // Settings & Google Integrations Routes
   app.use("/api/settings", settingsRouter);
 
-  // 404 Handler
+  // Static Assets & Single Page Application (SPA) Serving for Production Deployment
+  const possibleDistPaths = [
+    path.resolve(__dirname, "../../web/dist"),
+    path.resolve(process.cwd(), "apps/web/dist"),
+    path.resolve(process.cwd(), "../web/dist"),
+  ];
+  const webDistPath = possibleDistPaths.find((p) => fs.existsSync(p));
+
+  if (webDistPath) {
+    app.use(express.static(webDistPath));
+
+    app.get("*", (req: Request, res: Response, next: NextFunction) => {
+      if (req.path.startsWith("/api") || req.path.startsWith("/health")) {
+        return next();
+      }
+      res.sendFile(path.join(webDistPath, "index.html"));
+    });
+  }
+
+  // 404 Handler for Unmatched API Routes
   app.use((req: Request, res: Response) => {
     res.status(404).json({
       error: "NotFound",
