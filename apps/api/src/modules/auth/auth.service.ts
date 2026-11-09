@@ -47,20 +47,32 @@ export class AuthService {
       supabaseUser.user_metadata?.name ||
       null;
 
-    // 1. Upsert User record
-    const user = await prisma.user.upsert({
-      where: { supabaseId },
-      update: {
-        email,
-        ...(name ? { name } : {}),
-      },
-      create: {
-        supabaseId,
-        email,
-        name,
-        role: "member",
+    // 1. Resolve User record by supabaseId OR email (handles re-registration or OAuth provider linking)
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [{ supabaseId }, { email }],
       },
     });
+
+    if (user) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          supabaseId,
+          email,
+          ...(name ? { name } : {}),
+        },
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          supabaseId,
+          email,
+          name,
+          role: "member",
+        },
+      });
+    }
 
     // 2. Fetch existing workspace memberships
     let memberships = await prisma.workspaceMember.findMany({
