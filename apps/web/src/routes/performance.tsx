@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import {
   StatCard,
   StatusBadge,
+  AppContentSkeleton,
 } from "@/components/common";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 import { api } from "@/lib/api-client";
@@ -149,6 +150,10 @@ export function PerformancePage() {
   };
 
   const hasData = (overview?.sent ?? 0) > 0 || campaignsList.length > 0;
+
+  if (overviewQuery.isLoading && !overview) {
+    return <AppContentSkeleton layout="dashboard" />;
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

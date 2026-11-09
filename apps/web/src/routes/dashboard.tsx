@@ -23,6 +23,7 @@ import {
   StatCard,
   DataTable,
   StatusBadge,
+  AppContentSkeleton,
   type Column,
 } from "@/components/common";
 import type { Campaign } from "@/types";
@@ -150,6 +151,11 @@ export function DashboardOverviewPage() {
       },
     },
   ];
+
+  // If initial dashboard metrics haven't loaded yet, show skeleton screen
+  if (!contactStats && !analyticsOverview && !campaignsData) {
+    return <AppContentSkeleton layout="dashboard" />;
+  }
 
   return (
     <div className="space-y-6">

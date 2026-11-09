@@ -113,7 +113,7 @@ export function NotificationMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left">
+        <div className="absolute -right-12 sm:right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left">
           <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 px-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-900">Notifications</span>

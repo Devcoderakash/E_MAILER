@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import {
   StatusBadge,
   EmptyState,
+  TopProgressBar,
 } from "@/components/common";
 import type { Campaign } from "@/types";
 import { api } from "@/lib/api-client";
@@ -460,10 +461,31 @@ export function CampaignsPage() {
       {/* Main Campaign Listing Table */}
       <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs">
         {isLoadingCampaigns ? (
-          <div className="py-16 text-center text-xs text-slate-400">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-indigo-600" />
-            Loading campaigns...
-          </div>
+          <>
+            <TopProgressBar />
+            <div className="p-4 sm:p-5 space-y-3">
+              {[1, 2, 3, 4, 5].map((row) => (
+                <div
+                  key={row}
+                  className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-slate-50/60 space-x-4 animate-pulse"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div
+                      className="h-3.5 rounded bg-slate-200/70"
+                      style={{ width: `${60 - row * 6}%` }}
+                    />
+                    <div
+                      className="h-2.5 rounded bg-slate-200/40"
+                      style={{ width: `${80 - row * 7}%` }}
+                    />
+                  </div>
+                  <div className="h-5 w-16 rounded-full bg-slate-200/60 shrink-0" />
+                  <div className="h-4 w-12 rounded bg-slate-200/50 shrink-0 hidden sm:block" />
+                  <div className="h-6 w-16 rounded-md bg-slate-200/40 shrink-0" />
+                </div>
+              ))}
+            </div>
+          </>
         ) : campaigns.length === 0 ? (
           <EmptyState
             icon={Mail}
