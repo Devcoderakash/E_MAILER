@@ -17,9 +17,24 @@ export class WorkspaceService {
    * Helper to resolve internal User from Supabase auth UUID
    */
   private static async getInternalUser(supabaseId: string) {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { supabaseId },
     });
+    if (!user) {
+      try {
+        const { AuthService } = await import("../auth/auth.service");
+        const { supabaseAdmin } = await import("../../config/supabase");
+        const { data } = await supabaseAdmin.auth.admin.getUserById(supabaseId);
+        if (data?.user) {
+          await AuthService.syncUserFromSupabase(data.user);
+          user = await prisma.user.findUnique({
+            where: { supabaseId },
+          });
+        }
+      } catch (e: any) {
+        console.warn("[WorkspaceService] Auto-sync attempt notice:", e.message);
+      }
+    }
     if (!user) {
       throw new Error("User record not found in database");
     }

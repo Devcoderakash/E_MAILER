@@ -53,6 +53,15 @@ export async function requireAuth(
     }
 
     req.user = user;
+
+    // Automatically ensure user & default workspace exist in PostgreSQL database
+    try {
+      const { AuthService } = await import("../modules/auth/auth.service");
+      await AuthService.syncUserFromSupabase(user);
+    } catch (syncErr: any) {
+      console.warn("[AuthMiddleware] User auto-sync notice:", syncErr.message);
+    }
+
     next();
   } catch (err: any) {
     res.status(500).json({

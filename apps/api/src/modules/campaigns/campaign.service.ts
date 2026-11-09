@@ -86,7 +86,7 @@ export class CampaignService {
     workspaceId: string;
     role: string;
   }> {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { supabaseId },
       include: {
         memberships: {
@@ -95,6 +95,29 @@ export class CampaignService {
         },
       },
     });
+
+    if (!user) {
+      // Auto-provision user record if not yet synced from Supabase Auth
+      try {
+        const { AuthService } = await import("../auth/auth.service");
+        const { supabaseAdmin } = await import("../../config/supabase");
+        const { data } = await supabaseAdmin.auth.admin.getUserById(supabaseId);
+        if (data?.user) {
+          await AuthService.syncUserFromSupabase(data.user);
+          user = await prisma.user.findUnique({
+            where: { supabaseId },
+            include: {
+              memberships: {
+                include: { workspace: true },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          });
+        }
+      } catch (e: any) {
+        console.warn("[CampaignService] Auto-sync attempt notice:", e.message);
+      }
+    }
 
     if (!user) {
       const err: any = new Error("User not found");
