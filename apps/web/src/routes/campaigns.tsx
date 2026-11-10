@@ -1694,7 +1694,9 @@ export function CampaignsPage() {
                           <div className="font-medium text-slate-800 truncate">{r.email}</div>
                           {r.errorMessage ? (
                             <div className="text-rose-600 text-[11px] mt-0.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 break-words">
-                              {r.errorMessage}
+                              {r.errorMessage.includes("smtp.gmail.com") || r.errorMessage.includes("SMTP host")
+                                ? "Could not connect to Gmail. Cloud free hosting (like Render Free) blocks outbound email ports."
+                                : r.errorMessage}
                             </div>
                           ) : r.status === "SENT" ? (
                             <div className="text-slate-400 text-[10px] mt-0.5">

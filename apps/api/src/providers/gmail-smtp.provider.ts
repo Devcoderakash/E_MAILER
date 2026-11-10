@@ -515,7 +515,7 @@ export class GmailSmtpProvider {
       return {
         code: "AUTH_FAILED",
         message:
-          "Gmail SMTP authentication failed. Please verify your 16-character Google App Password (2-Step Verification must be enabled on your Google Account).",
+          "Could not sign in to Gmail. Please check your 16-character App Password in Settings.",
         isPermanentBounce: false,
         isQuotaExceeded: false,
         isAuthFailure: true,
@@ -532,7 +532,7 @@ export class GmailSmtpProvider {
       return {
         code: "QUOTA_EXCEEDED",
         message:
-          "Google daily sending quota exceeded (500 emails/day for personal Gmail, 2,000/day for Google Workspace).",
+          "Daily sending limit reached (500 emails/day for personal Gmail). Sending will resume when the 24h window resets.",
         isPermanentBounce: false,
         isQuotaExceeded: true,
         isAuthFailure: false,
@@ -556,7 +556,7 @@ export class GmailSmtpProvider {
     ) {
       return {
         code: "PERMANENT_BOUNCE",
-        message: `Recipient address was permanently rejected by destination server: ${rawMessage.substring(0, 120)}`,
+        message: "Email address does not exist or was rejected by the mailbox provider.",
         isPermanentBounce: true,
         isQuotaExceeded: false,
         isAuthFailure: false,
@@ -577,7 +577,7 @@ export class GmailSmtpProvider {
     ) {
       return {
         code: "CONNECTION_FAILED",
-        message: `Failed to connect to Google SMTP host (${env.GMAIL_SMTP_HOST}:${env.GMAIL_SMTP_PORT}). Check network connectivity.`,
+        message: "Could not connect to Gmail. On cloud free hosting (like Render Free), outbound email ports are blocked.",
         isPermanentBounce: false,
         isQuotaExceeded: false,
         isAuthFailure: false,
@@ -597,7 +597,7 @@ export class GmailSmtpProvider {
    * Sanitize error message to ensure no passwords or sensitive tokens are logged
    */
   public static sanitizeErrorMessage(err: any): string {
-    let msg = String(err?.message || "Unknown SMTP error occurred");
+    let msg = String(err?.message || "Could not deliver email");
     if (env.GMAIL_SMTP_APP_PASSWORD) {
       msg = msg.replace(new RegExp(env.GMAIL_SMTP_APP_PASSWORD, "g"), "[REDACTED]");
     }

@@ -383,6 +383,21 @@ export function createCampaignWorker() {
       }
 
       // Check if any recipients for this campaign are still PENDING or PROCESSING
+      // Also automatically mark any orphaned PROCESSING recipients older than 2 minutes as FAILED
+      await prisma.campaignRecipient.updateMany({
+        where: {
+          campaignId,
+          status: CampaignRecipientStatus.PROCESSING,
+          updatedAt: {
+            lt: new Date(Date.now() - 2 * 60 * 1000),
+          },
+        },
+        data: {
+          status: CampaignRecipientStatus.FAILED,
+          errorMessage: "Dispatch timed out while attempting delivery.",
+        },
+      });
+
       const remainingRecipients = await prisma.campaignRecipient.count({
         where: {
           campaignId,
