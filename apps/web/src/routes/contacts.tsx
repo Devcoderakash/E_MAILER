@@ -605,9 +605,6 @@ export function ContactsPage() {
           <div className="text-xl font-bold text-slate-900 mt-1">
             {stats ? stats.total.toLocaleString() : "..."}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            Across {stats?.listCount ?? 0} lists & {stats?.tagCount ?? 0} tags
-          </div>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200/80 bg-white shadow-xs">
@@ -642,9 +639,6 @@ export function ContactsPage() {
           </div>
           <div className="text-xl font-bold text-slate-900 mt-1 text-rose-600">
             {stats ? stats.bounced.toLocaleString() : "..."}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            Suppressed automatically
           </div>
         </div>
       </div>
@@ -841,15 +835,20 @@ export function ContactsPage() {
                           className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
                         <div className="min-w-0">
-                          <div className="font-semibold text-slate-900 text-xs truncate">
-                            {contact.email}
-                          </div>
-                          {(contact.firstName || contact.lastName) && (
-                            <div className="text-slate-500 text-[11px] truncate mt-0.5">
-                              {[contact.firstName, contact.lastName].filter(Boolean).join(" ")}
-                              {contact.company && ` • ${contact.company}`}
-                            </div>
-                          )}
+                          {(() => {
+                            const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+                            return (
+                              <>
+                                <div className="font-semibold text-slate-900 text-xs truncate">
+                                  {fullName || contact.email}
+                                </div>
+                                <div className="text-slate-500 text-[11px] truncate mt-0.5">
+                                  {fullName ? contact.email : (contact.company || "")}
+                                  {contact.company && fullName && ` • ${contact.company}`}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="shrink-0">
@@ -963,15 +962,20 @@ export function ContactsPage() {
                           />
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900">
-                            {contact.email}
-                          </div>
-                          {(contact.firstName || contact.lastName) && (
-                            <div className="text-slate-500 text-[11px]">
-                              {[contact.firstName, contact.lastName].filter(Boolean).join(" ")}
-                              {contact.company && ` • ${contact.company}`}
-                            </div>
-                          )}
+                          {(() => {
+                            const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+                            return (
+                              <div>
+                                <div className="font-semibold text-slate-900 text-sm">
+                                  {fullName || contact.email}
+                                </div>
+                                <div className="text-slate-500 text-xs mt-0.5">
+                                  {fullName ? contact.email : (contact.company || "")}
+                                  {contact.company && fullName && ` • ${contact.company}`}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4">
                           <StatusBadge status={contact.status} />
@@ -994,9 +998,6 @@ export function ContactsPage() {
                                 {l.name}
                               </span>
                             ))}
-                            {tagItems.length === 0 && listItems.length === 0 && (
-                              <span className="text-slate-400 text-[11px] italic">No lists or tags</span>
-                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-500">

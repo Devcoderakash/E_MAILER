@@ -337,68 +337,44 @@ export function ScheduleCenterPage() {
         }
       />
 
-      {/* View Switcher & Timezone Toolbar */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* View Mode Toggle */}
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode("timeline")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
-              viewMode === "timeline"
-                ? "bg-white text-slate-900 shadow-2xs"
-                : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Timeline View
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("calendar")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
-              viewMode === "calendar"
-                ? "bg-white text-slate-900 shadow-2xs"
-                : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-            Calendar Month
-          </button>
-        </div>
+      {/* Merged Single Compact Filter & Controls Toolbar */}
+      <div className="rounded-xl border border-slate-200/80 bg-white p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode("timeline")}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors ${
+                viewMode === "timeline"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("calendar")}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors ${
+                viewMode === "calendar"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Calendar
+            </button>
+          </div>
 
-        {/* Timezone Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1 text-xs">
-          <Globe className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-          <span className="text-slate-500 font-medium">Timezone:</span>
-          <select
-            value={selectedTimezone}
-            onChange={(e) => setSelectedTimezone(e.target.value)}
-            className="bg-transparent border-none text-slate-900 font-semibold text-xs focus:ring-0 cursor-pointer pr-4"
-          >
-            {POPULAR_TIMEZONES.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      {viewMode === "timeline" ? (
-        /* ========================================================================= */
-        /* TIMELINE VIEW                                                             */
-        /* ========================================================================= */
-        <div className="space-y-4">
-          {/* Controls Bar: Filter tabs & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            {/* Status Tabs */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-2xs overflow-x-auto no-scrollbar shrink-0">
+          {/* Status Tabs (shown in timeline mode) */}
+          {viewMode === "timeline" && (
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs overflow-x-auto no-scrollbar shrink-0">
               {[
-                { id: "all", label: "All Items" },
-                { id: "SCHEDULED", label: "Upcoming Scheduled" },
-                { id: "SENT", label: "Sent / Executed" },
+                { id: "all", label: "All" },
+                { id: "SCHEDULED", label: "Scheduled" },
+                { id: "SENT", label: "Sent" },
                 { id: "DRAFT", label: "Drafts" },
               ].map((tab) => (
                 <button
@@ -408,9 +384,9 @@ export function ScheduleCenterPage() {
                     setStatusFilter(tab.id as any);
                     setPage(1);
                   }}
-                  className={`rounded-md px-3 py-1 font-medium transition-colors whitespace-nowrap ${
+                  className={`rounded-md px-2.5 py-1 font-medium transition-colors whitespace-nowrap ${
                     statusFilter === tab.id
-                      ? "bg-indigo-600 text-white shadow-2xs"
+                      ? "bg-indigo-600 text-white shadow-xs"
                       : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -418,9 +394,13 @@ export function ScheduleCenterPage() {
                 </button>
               ))}
             </div>
+          )}
+        </div>
 
-            {/* Search */}
-            <div className="w-full sm:w-64">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Search (in timeline mode) */}
+          {viewMode === "timeline" && (
+            <div className="w-full sm:w-48">
               <SearchInput
                 value={timelineSearch}
                 onChange={(e) => setTimelineSearch(e.target.value)}
@@ -428,8 +408,32 @@ export function ScheduleCenterPage() {
                 placeholder="Search schedule..."
               />
             </div>
-          </div>
+          )}
 
+          {/* Compact Timezone Selector */}
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-xs shrink-0" title="Selected schedule timezone">
+            <Globe className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <select
+              value={selectedTimezone}
+              onChange={(e) => setSelectedTimezone(e.target.value)}
+              className="bg-transparent border-none text-slate-900 font-medium text-xs focus:ring-0 cursor-pointer pr-3 py-0.5"
+            >
+              {POPULAR_TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      {viewMode === "timeline" ? (
+        /* ========================================================================= */
+        /* TIMELINE VIEW                                                             */
+        /* ========================================================================= */
+        <div className="space-y-4">
           {/* Timeline Cards Container */}
           <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs">
             {schedulesQuery.isLoading ? (

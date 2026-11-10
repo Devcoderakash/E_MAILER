@@ -44,7 +44,6 @@ import { Button } from "@/components/ui/button";
 import {
   PageHeader,
   StatusBadge,
-  EmptyState,
   SearchInput,
 } from "@/components/common";
 import { nodeTypes } from "@/features/automations/custom-nodes";
@@ -476,8 +475,8 @@ export function AutomationBuilderPage() {
 
       {/* Header */}
       <PageHeader
-        title="Automations & Drip Sequences"
-        description="Visual workflow engine for behavioral sequences, condition branching, and drip funnels."
+        title="Automations"
+        description="Send emails automatically when someone signs up or clicks a link."
         badge={
           <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200/60">
             {metrics.total} Workflows ({metrics.activeCount} Active)
@@ -494,50 +493,52 @@ export function AutomationBuilderPage() {
         }
       />
 
-      {/* Metric Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Total Automations</span>
-            <Workflow className="h-4 w-4 text-indigo-500" />
+      {/* Metric Summary Cards — only show when automations exist */}
+      {automations.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+              <span>Total Automations</span>
+              <Workflow className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{metrics.total}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Configured in workspace</div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{metrics.total}</div>
-          <div className="text-[11px] text-slate-400 mt-1">Configured in workspace</div>
-        </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Active Sequences</span>
-            <Activity className="h-4 w-4 text-emerald-500" />
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+              <span>Active Sequences</span>
+              <Activity className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-bold text-emerald-600">
+              {metrics.activeCount}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1">Listening for triggers</div>
           </div>
-          <div className="text-2xl font-bold text-emerald-600">
-            {metrics.activeCount}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Listening for triggers</div>
-        </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Enrolled Contacts</span>
-            <Users className="h-4 w-4 text-blue-500" />
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+              <span>Enrolled Contacts</span>
+              <Users className="h-4 w-4 text-blue-500" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {metrics.totalEnrolled.toLocaleString()}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1">Total journeys initiated</div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {metrics.totalEnrolled.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Total journeys initiated</div>
-        </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Completed Runs</span>
-            <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+              <span>Completed Runs</span>
+              <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {metrics.completedCount.toLocaleString()}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1">Full flows finished</div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {metrics.completedCount.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Full flows finished</div>
         </div>
-      </div>
+      )}
 
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -721,13 +722,111 @@ export function AutomationBuilderPage() {
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon={Workflow}
-          title="No automations found"
-          description="Build triggered drip sequences, welcome series, or condition-based onboarding journeys."
-          actionLabel="Create First Automation"
-          onAction={() => setIsCreateModalOpen(true)}
-        />
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 sm:p-12 text-center max-w-2xl mx-auto">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 mb-4">
+              <Workflow className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">
+              No automations yet
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Send emails automatically when someone signs up or clicks a link. Start from scratch or pick a starter template below.
+            </p>
+            <div className="mt-5">
+              <Button
+                onClick={() => {
+                  setNewWorkflowName("");
+                  setNewWorkflowDesc("");
+                  setNewTriggerType("contact_subscribed");
+                  setIsCreateModalOpen(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-4 gap-2 font-medium"
+              >
+                <Plus className="h-4 w-4" />
+                Create Custom Automation
+              </Button>
+            </div>
+          </div>
+
+          {/* Starter Template Suggestion Cards */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-1">
+              Suggested Starter Templates
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Template 1: Welcome series */}
+              <div className="rounded-xl border border-slate-200/80 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                      <Zap className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm text-slate-900">Welcome series</h4>
+                      <span className="text-[10px] text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">Trigger: New Contact</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                    Automatically send a friendly greeting immediately when someone subscribes, then follow up with helpful tips 2 days later.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">2 emails · 1 delay node</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setNewWorkflowName("Welcome series");
+                      setNewWorkflowDesc("Automatically send a friendly greeting when someone subscribes, with a follow-up 2 days later.");
+                      setNewTriggerType("contact_subscribed");
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="text-xs font-medium text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 gap-1.5"
+                  >
+                    <span>Use Template</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Template 2: Re-engage inactive */}
+              <div className="rounded-xl border border-slate-200/80 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm text-slate-900">Re-engage inactive</h4>
+                      <span className="text-[10px] text-amber-700 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">Trigger: Inactivity Tag</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                    Check in with subscribers who haven't opened your recent emails. Offer a special incentive or ask for feedback to rekindle interest.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">1 email · condition branch</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setNewWorkflowName("Re-engage inactive");
+                      setNewWorkflowDesc("Reach out to inactive subscribers with a friendly check-in or feedback question.");
+                      setNewTriggerType("tag_assigned");
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="text-xs font-medium text-indigo-600 border-indigo-200 hover:bg-indigo-50 h-8 gap-1.5"
+                  >
+                    <span>Use Template</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========================================================= */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -174,6 +174,26 @@ export function CampaignsPage() {
     enabled: !!activeWorkspace?.id,
     refetchInterval: 15000,
   });
+
+  // Fetch all campaigns to compute exact counts for filter chips
+  const { data: allCampaignsData } = useQuery({
+    queryKey: ["campaigns-all-counts", activeWorkspace?.id],
+    queryFn: () => api.getCampaigns({ limit: 100 }),
+    enabled: !!activeWorkspace?.id,
+    refetchInterval: 15000,
+  });
+
+  const allItems = allCampaignsData?.items || [];
+  const campaignCounts = useMemo(() => {
+    return {
+      all: allCampaignsData?.pagination?.total ?? allItems.length,
+      DRAFT: allItems.filter((c: any) => c.status === "DRAFT").length,
+      SCHEDULED: allItems.filter((c: any) => c.status === "SCHEDULED").length,
+      SENDING: allItems.filter((c: any) => c.status === "SENDING" || c.status === "QUEUED").length,
+      SENT: allItems.filter((c: any) => c.status === "SENT").length,
+      FAILED: allItems.filter((c: any) => c.status === "FAILED" || c.status === "CANCELLED").length,
+    };
+  }, [allItems, allCampaignsData]);
 
   // 2. Fetch Contact lists & tags for audience step
   const listsQuery = useQuery({
@@ -483,12 +503,12 @@ export function CampaignsPage() {
         {/* Status Filters with hidden scrollbar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           {[
-            { id: "all", label: "All Campaigns" },
-            { id: "DRAFT", label: "Drafts" },
-            { id: "SCHEDULED", label: "Scheduled" },
-            { id: "SENDING", label: "Sending" },
-            { id: "SENT", label: "Sent" },
-            { id: "FAILED", label: "Failed" },
+            { id: "all", label: `All (${campaignCounts.all})` },
+            { id: "DRAFT", label: `Drafts (${campaignCounts.DRAFT})` },
+            { id: "SCHEDULED", label: `Scheduled (${campaignCounts.SCHEDULED})` },
+            { id: "SENDING", label: `Sending (${campaignCounts.SENDING})` },
+            { id: "SENT", label: `Sent (${campaignCounts.SENT})` },
+            { id: "FAILED", label: `Failed (${campaignCounts.FAILED})` },
           ].map((item) => {
             const isActive = statusFilter === item.id;
             return (
@@ -724,7 +744,7 @@ export function CampaignsPage() {
                     return (
                       <tr
                         key={camp.id}
-                        className="hover:bg-slate-50/75 transition-colors cursor-pointer"
+                        className="hover:bg-slate-50 transition-colors cursor-pointer"
                         onClick={() => setDetailsCampaign(camp)}
                       >
                         <td className="py-3.5 px-4">
