@@ -1123,6 +1123,92 @@ export function AutomationBuilderPage() {
                       />
                     </div>
 
+                    {/* Trigger Node Configuration */}
+                    {(selectedNode.type === "contact_subscribed" ||
+                      selectedNode.type === "trigger" ||
+                      selectedNode.type === "contact_added_to_list" ||
+                      selectedNode.type === "tag_assigned" ||
+                      selectedNode.id === "trigger_1") && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                            Trigger Event (How contacts enter)
+                          </label>
+                          <select
+                            value={String(selectedNode.data?.type || selectedNode.type || "contact_subscribed")}
+                            onChange={(e) => {
+                              const newType = e.target.value;
+                              let newLabel = "Contact Subscribed";
+                              if (newType === "contact_added_to_list") newLabel = "Added to List";
+                              if (newType === "tag_assigned") newLabel = "Tag Applied";
+                              handleUpdateSelectedNodeData({
+                                type: newType,
+                                label: newLabel,
+                              });
+                            }}
+                            className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white"
+                          >
+                            <option value="contact_subscribed">
+                              When any contact subscribes / added
+                            </option>
+                            <option value="contact_added_to_list">
+                              When contact is added to a list
+                            </option>
+                            <option value="tag_assigned">
+                              When a tag is applied to contact
+                            </option>
+                          </select>
+                        </div>
+
+                        {String(selectedNode.data?.type || selectedNode.type) === "contact_added_to_list" && (
+                          <div>
+                            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                              Target List Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. VIP Customers, Newsletter"
+                              value={String(selectedNode.data?.listName || "")}
+                              onChange={(e) =>
+                                handleUpdateSelectedNodeData({
+                                  listName: e.target.value,
+                                })
+                              }
+                              className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                            />
+                          </div>
+                        )}
+
+                        {String(selectedNode.data?.type || selectedNode.type) === "tag_assigned" && (
+                          <div>
+                            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                              Target Tag Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Lead, Inactive"
+                              value={String(selectedNode.data?.tagName || "")}
+                              onChange={(e) =>
+                                handleUpdateSelectedNodeData({
+                                  tagName: e.target.value,
+                                })
+                              }
+                              className="w-full text-xs rounded-lg border border-slate-200 px-3 py-1.5"
+                            />
+                          </div>
+                        )}
+
+                        <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-100 text-[11px] text-emerald-800 space-y-1">
+                          <div className="font-semibold flex items-center gap-1.5">
+                            <span>💡 Automatic Enrollment</span>
+                          </div>
+                          <div className="leading-relaxed">
+                            Contacts are enrolled automatically whenever this event happens (e.g. when someone signs up or gets tagged). You do not need to manually select contacts.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Node-specific configuration fields */}
                     {selectedNode.type === "delay" && (
                       <div className="space-y-3 pt-2 border-t border-slate-100">
@@ -1274,15 +1360,25 @@ export function AutomationBuilderPage() {
 
                   {/* Delete Node action */}
                   <div className="pt-4 border-t border-slate-100">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDeleteSelectedNode}
-                      className="w-full text-xs text-rose-600 hover:bg-rose-50 border-rose-200 gap-1.5"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete Step
-                    </Button>
+                    {selectedNode.type === "contact_subscribed" ||
+                    selectedNode.type === "trigger" ||
+                    selectedNode.type === "contact_added_to_list" ||
+                    selectedNode.type === "tag_assigned" ||
+                    selectedNode.id === "trigger_1" ? (
+                      <div className="text-[11px] text-center text-slate-400 italic py-1">
+                        Trigger step is required to start the workflow.
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDeleteSelectedNode}
+                        className="w-full text-xs text-rose-600 hover:bg-rose-50 border-rose-200 gap-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Step
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
