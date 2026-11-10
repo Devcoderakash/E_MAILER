@@ -22,6 +22,7 @@ import { PageHeader, EmptyState, SearchInput } from "@/components/common";
 import type { EmailTemplate, TemplateCategory, TemplateStatus } from "@/types";
 import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/features/auth/use-auth-store";
+import { formatDate } from "@/lib/utils";
 import {
   VisualEditor,
   HtmlEditor,
@@ -682,11 +683,7 @@ export function TemplatesPage({ onUseInCampaign, hideHeader }: TemplatesPageProp
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {templates.map((tpl) => {
             const isReady = tpl.status.toUpperCase() === "READY";
-            const updatedDate = new Date(tpl.updatedAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            });
+            const updatedDate = formatDate(tpl.updatedAt);
 
             return (
               <div

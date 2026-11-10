@@ -33,6 +33,7 @@ import {
 import type { Campaign } from "@/types";
 import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/features/auth/use-auth-store";
+import { formatDate } from "@/lib/utils";
 import { STARTER_TEMPLATES, getStarterHTML } from "@/features/templates/sample-templates";
 import { TemplatesPage } from "./templates";
 
@@ -643,8 +644,8 @@ export function CampaignsPage() {
                       <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] ml-auto">
                         <Calendar className="h-3 w-3" />
                         {camp.scheduledAt
-                          ? new Date(camp.scheduledAt).toLocaleDateString()
-                          : new Date(camp.updatedAt || camp.createdAt).toLocaleDateString()}
+                          ? formatDate(camp.scheduledAt)
+                          : formatDate(camp.updatedAt || camp.createdAt)}
                       </span>
                     </div>
 
@@ -778,8 +779,8 @@ export function CampaignsPage() {
                         </td>
                         <td className="py-3.5 px-4 text-xs text-slate-500">
                           {camp.scheduledAt
-                            ? `Scheduled: ${new Date(camp.scheduledAt).toLocaleDateString()}`
-                            : new Date(camp.updatedAt || camp.createdAt).toLocaleDateString()}
+                            ? `Scheduled: ${formatDate(camp.scheduledAt)}`
+                            : formatDate(camp.updatedAt || camp.createdAt)}
                         </td>
                         <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">

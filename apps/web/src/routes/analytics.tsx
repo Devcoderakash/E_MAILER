@@ -28,6 +28,7 @@ import {
 } from "@/components/common";
 import { useAuthStore } from "@/features/auth/use-auth-store";
 import { api } from "@/lib/api-client";
+import { formatDate } from "@/lib/utils";
 import type {
   CampaignDetailAnalytics,
   TimelineBucket,
@@ -500,7 +501,7 @@ export function AnalyticsPage() {
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-400 shrink-0">
-                          {new Date(camp.sentAt).toLocaleDateString()}
+                          {formatDate(camp.sentAt)}
                         </span>
                       </div>
 
@@ -579,7 +580,7 @@ export function AnalyticsPage() {
                             </div>
                           </td>
                           <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
-                            {new Date(camp.sentAt).toLocaleDateString()}
+                            {formatDate(camp.sentAt)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono font-medium text-slate-700 whitespace-nowrap">
                             {camp.sentCount.toLocaleString()}

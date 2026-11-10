@@ -426,7 +426,7 @@ export function DashboardOverviewPage() {
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-slate-400" />
                         {item.scheduledAt
-                          ? new Date(item.scheduledAt).toLocaleDateString()
+                          ? formatDate(item.scheduledAt)
                           : "Scheduled"}
                       </span>
                       <span className="text-slate-600 font-medium">

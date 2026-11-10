@@ -31,6 +31,7 @@ import type {
 } from "@/types";
 import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/features/auth/use-auth-store";
+import { formatDate } from "@/lib/utils";
 
 // Helper for CSV parsing
 function parseCSV(text: string): { headers: string[]; rows: string[][] } {
@@ -954,11 +955,7 @@ export function ContactsPage() {
                     {/* Bottom: Date and Actions */}
                     <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400 pl-6">
                       <span>
-                        {new Date(contact.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                        {formatDate(contact.createdAt)}
                       </span>
                       <div className="inline-flex items-center gap-1">
                         <button
@@ -1074,11 +1071,7 @@ export function ContactsPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-500">
-                          {new Date(contact.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                          {formatDate(contact.createdAt)}
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
