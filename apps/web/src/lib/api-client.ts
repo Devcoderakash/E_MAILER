@@ -278,6 +278,25 @@ export const api = {
     });
   },
 
+  async addListMembers(
+    listId: string,
+    contactIds: string[]
+  ): Promise<{ added: number }> {
+    return apiRequest<{ added: number }>(`/api/contact-lists/${listId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ contactIds }),
+    });
+  },
+
+  async assignTag(
+    contactId: string,
+    tagId: string
+  ): Promise<any> {
+    return apiRequest(`/api/contacts/${contactId}/tags/${tagId}`, {
+      method: "POST",
+    });
+  },
+
   // ==========================================
   // Contact Tags API
   // ==========================================

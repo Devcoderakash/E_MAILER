@@ -86,6 +86,11 @@ export function ContactsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkAddToListModalOpen, setIsBulkAddToListModalOpen] = useState(false);
+  const [isBulkAddTagModalOpen, setIsBulkAddTagModalOpen] = useState(false);
+  const [selectedListIdForBulk, setSelectedListIdForBulk] = useState<string>("");
+  const [selectedTagIdForBulk, setSelectedTagIdForBulk] = useState<string>("");
+  const [isBulkActionPending, setIsBulkActionPending] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
@@ -329,6 +334,50 @@ export function ContactsPage() {
       setToastMessage({ type: "error", text: err.message || "Bulk delete failed" });
     },
   });
+
+  // Bulk Add Contacts to List
+  const handleBulkAddToList = async () => {
+    if (!selectedListIdForBulk || selectedIds.length === 0) return;
+    setIsBulkActionPending(true);
+    try {
+      await api.addListMembers(selectedListIdForBulk, selectedIds);
+      refreshAll();
+      setIsBulkAddToListModalOpen(false);
+      setSelectedListIdForBulk("");
+      setSelectedIds([]);
+      setToastMessage({
+        type: "success",
+        text: `Successfully added ${selectedIds.length} contact(s) to list`,
+      });
+    } catch (err: any) {
+      setToastMessage({ type: "error", text: err.message || "Failed to add contacts to list" });
+    } finally {
+      setIsBulkActionPending(false);
+    }
+  };
+
+  // Bulk Assign Tag to Contacts
+  const handleBulkAssignTag = async () => {
+    if (!selectedTagIdForBulk || selectedIds.length === 0) return;
+    setIsBulkActionPending(true);
+    try {
+      await Promise.all(
+        selectedIds.map((id) => api.assignTag(id, selectedTagIdForBulk).catch(() => null))
+      );
+      refreshAll();
+      setIsBulkAddTagModalOpen(false);
+      setSelectedTagIdForBulk("");
+      setSelectedIds([]);
+      setToastMessage({
+        type: "success",
+        text: `Successfully assigned tag to ${selectedIds.length} contact(s)`,
+      });
+    } catch (err: any) {
+      setToastMessage({ type: "error", text: err.message || "Failed to assign tag" });
+    } finally {
+      setIsBulkActionPending(false);
+    }
+  };
 
   // Create List Mutation
   const createListMutation = useMutation({
@@ -737,14 +786,30 @@ export function ContactsPage() {
               </span>
               <span>contact(s) selected across current view</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedIds([])}
-                className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-100/60"
+                onClick={() => {
+                  setSelectedListIdForBulk(lists[0]?.id || "");
+                  setIsBulkAddToListModalOpen(true);
+                }}
+                className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-100/60 gap-1 bg-white"
               >
-                Deselect
+                <FolderPlus className="h-3.5 w-3.5" />
+                Add to list
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedTagIdForBulk(tags[0]?.id || "");
+                  setIsBulkAddTagModalOpen(true);
+                }}
+                className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-100/60 gap-1 bg-white"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Add tag
               </Button>
               <Button
                 size="sm"
@@ -752,7 +817,15 @@ export function ContactsPage() {
                 className="h-7 text-xs bg-rose-600 hover:bg-rose-700 text-white gap-1"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Delete Selected
+                Delete
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds([])}
+                className="h-7 text-xs text-slate-500 hover:bg-indigo-100/50"
+              >
+                Deselect
               </Button>
             </div>
           </div>
@@ -1533,6 +1606,124 @@ export function ContactsPage() {
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 )}
                 Delete {selectedIds.length} Contacts
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add to List Modal */}
+      {isBulkAddToListModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                <FolderPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Add to List</h3>
+                <p className="text-xs text-slate-500">{selectedIds.length} contacts selected</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-medium text-slate-700">
+                Select target list
+              </label>
+              {lists.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No lists created yet. Create a list first.</p>
+              ) : (
+                <select
+                  value={selectedListIdForBulk}
+                  onChange={(e) => setSelectedListIdForBulk(e.target.value)}
+                  className="w-full text-xs rounded-lg border border-slate-200 px-3 py-2 bg-white focus:outline-indigo-600"
+                >
+                  <option value="" disabled>Choose a list...</option>
+                  {lists.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkAddToListModalOpen(false)}
+                className="text-xs border-slate-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!selectedListIdForBulk || isBulkActionPending}
+                onClick={handleBulkAddToList}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
+              >
+                {isBulkActionPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Add to List
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add Tag Modal */}
+      {isBulkAddTagModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <Tag className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Add Tag to Contacts</h3>
+                <p className="text-xs text-slate-500">{selectedIds.length} contacts selected</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-medium text-slate-700">
+                Select tag to apply
+              </label>
+              {tags.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">No tags created yet. Create tags first.</p>
+              ) : (
+                <select
+                  value={selectedTagIdForBulk}
+                  onChange={(e) => setSelectedTagIdForBulk(e.target.value)}
+                  className="w-full text-xs rounded-lg border border-slate-200 px-3 py-2 bg-white focus:outline-indigo-600"
+                >
+                  <option value="" disabled>Choose a tag...</option>
+                  {tags.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkAddTagModalOpen(false)}
+                className="text-xs border-slate-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!selectedTagIdForBulk || isBulkActionPending}
+                onClick={handleBulkAssignTag}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+              >
+                {isBulkActionPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Apply Tag
               </Button>
             </div>
           </div>

@@ -342,7 +342,7 @@ export function PerformancePage() {
         )}
       </div>
 
-      {/* Engagement Activity View / Empty State */}
+      {/* Engagement Activity View / Chart */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-2xs">
         <h3 className="text-sm font-semibold text-slate-900 mb-1">
           Engagement Activity
@@ -359,27 +359,7 @@ export function PerformancePage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {timeline.slice(-7).map((bucket) => (
-              <div
-                key={bucket.date}
-                className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs"
-              >
-                <span className="font-medium text-slate-800">{bucket.date}</span>
-                <div className="flex items-center gap-4 text-slate-600">
-                  <span>
-                    <strong>{bucket.sent}</strong> sent
-                  </span>
-                  <span>
-                    <strong className="text-emerald-600">{bucket.opens}</strong> opens
-                  </span>
-                  <span>
-                    <strong className="text-indigo-600">{bucket.clicks}</strong> clicks
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <EngagementActivityChart data={timeline} />
         )}
       </div>
 
@@ -553,6 +533,234 @@ export function PerformancePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Responsive SVG chart replacing the plain text list for Engagement Activity
+ */
+function EngagementActivityChart({ data }: { data: TimelineBucket[] }) {
+  const [activeMetric, setActiveMetric] = useState<"all" | "sent" | "opens" | "clicks">("all");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  // Take the last 7 to 14 days
+  const recentData = data.slice(-14);
+
+  if (!recentData || recentData.length === 0) {
+    return (
+      <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+        <BarChart2 className="h-8 w-8 text-slate-300 mx-auto" />
+        <p className="text-slate-500 font-medium">
+          No performance data yet. Send your first campaign to see results.
+        </p>
+      </div>
+    );
+  }
+
+  const width = 640;
+  const height = 180;
+  const paddingX = 36;
+  const paddingY = 24;
+
+  const maxVal = Math.max(
+    ...recentData.map((d) => Math.max(d.sent, d.opens, d.clicks)),
+    5
+  );
+
+  const slotWidth = (width - paddingX * 2) / Math.max(1, recentData.length);
+  const barWidth = Math.max(4, Math.min(10, slotWidth / 4));
+
+  const hoveredBucket = hoverIndex !== null ? recentData[hoverIndex] : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Chart Toolbar: Legend + Metric Filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-xs bg-indigo-600 inline-block" />
+            <span className="text-slate-600 text-[11px] font-medium">Sent</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-xs bg-emerald-500 inline-block" />
+            <span className="text-slate-600 text-[11px] font-medium">Opens</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-xs bg-sky-500 inline-block" />
+            <span className="text-slate-600 text-[11px] font-medium">Clicks</span>
+          </div>
+        </div>
+
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+          {(["all", "sent", "opens", "clicks"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setActiveMetric(m)}
+              className={`rounded px-2.5 py-0.5 capitalize text-[11px] font-medium transition-colors ${
+                activeMetric === m
+                  ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* SVG Chart Container */}
+      <div className="relative w-full overflow-hidden">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full h-44 select-none"
+          onMouseLeave={() => setHoverIndex(null)}
+        >
+          {/* Grid lines */}
+          {[0, 0.5, 1].map((ratio) => {
+            const y = height - paddingY - ratio * (height - paddingY * 2);
+            return (
+              <g key={ratio}>
+                <line
+                  x1={paddingX}
+                  y1={y}
+                  x2={width - paddingX}
+                  y2={y}
+                  stroke="#f1f5f9"
+                  strokeWidth="1"
+                />
+                <text
+                  x={paddingX - 6}
+                  y={y + 3}
+                  textAnchor="end"
+                  className="fill-slate-400 text-[9px] font-mono"
+                >
+                  {Math.round(maxVal * ratio)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bars per bucket */}
+          {recentData.map((d, i) => {
+            const centerX = paddingX + i * slotWidth + slotWidth / 2;
+            const isHovered = hoverIndex === i;
+
+            const sentH = (d.sent / maxVal) * (height - paddingY * 2);
+            const opensH = (d.opens / maxVal) * (height - paddingY * 2);
+            const clicksH = (d.clicks / maxVal) * (height - paddingY * 2);
+
+            const baseY = height - paddingY;
+
+            return (
+              <g
+                key={d.date}
+                className="cursor-pointer"
+                onMouseEnter={() => setHoverIndex(i)}
+              >
+                {/* Background hover highlight column */}
+                {isHovered && (
+                  <rect
+                    x={centerX - slotWidth / 2 + 2}
+                    y={paddingY}
+                    width={slotWidth - 4}
+                    height={height - paddingY * 2}
+                    fill="#f8fafc"
+                    rx="4"
+                  />
+                )}
+
+                {/* Sent bar */}
+                {(activeMetric === "all" || activeMetric === "sent") && (
+                  <rect
+                    x={activeMetric === "all" ? centerX - barWidth * 1.6 : centerX - barWidth / 2}
+                    y={baseY - sentH}
+                    width={barWidth}
+                    height={Math.max(sentH, d.sent > 0 ? 2 : 0)}
+                    fill="#6366f1"
+                    rx="2"
+                    className="transition-all"
+                    opacity={isHovered ? 1 : 0.85}
+                  />
+                )}
+
+                {/* Opens bar */}
+                {(activeMetric === "all" || activeMetric === "opens") && (
+                  <rect
+                    x={activeMetric === "all" ? centerX - barWidth * 0.5 : centerX - barWidth / 2}
+                    y={baseY - opensH}
+                    width={barWidth}
+                    height={Math.max(opensH, d.opens > 0 ? 2 : 0)}
+                    fill="#10b981"
+                    rx="2"
+                    className="transition-all"
+                    opacity={isHovered ? 1 : 0.85}
+                  />
+                )}
+
+                {/* Clicks bar */}
+                {(activeMetric === "all" || activeMetric === "clicks") && (
+                  <rect
+                    x={activeMetric === "all" ? centerX + barWidth * 0.6 : centerX - barWidth / 2}
+                    y={baseY - clicksH}
+                    width={barWidth}
+                    height={Math.max(clicksH, d.clicks > 0 ? 2 : 0)}
+                    fill="#0284c7"
+                    rx="2"
+                    className="transition-all"
+                    opacity={isHovered ? 1 : 0.85}
+                  />
+                )}
+
+                {/* X-axis date label */}
+                <text
+                  x={centerX}
+                  y={height - 6}
+                  textAnchor="middle"
+                  className={`text-[9px] font-mono ${
+                    isHovered ? "fill-slate-900 font-semibold" : "fill-slate-400"
+                  }`}
+                >
+                  {d.date.length > 5 ? d.date.slice(5) : d.date}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Hover Tooltip floating box */}
+        {hoveredBucket && (
+          <div
+            className="absolute top-1 pointer-events-none rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur-2xs space-y-1 z-10"
+            style={{
+              left: `${Math.min(
+                Math.max(
+                  ((paddingX + (hoverIndex ?? 0) * slotWidth + slotWidth / 2) / width) * 100,
+                  18
+                ),
+                82
+              )}%`,
+              transform: "translateX(-50%)",
+            }}
+          >
+            <div className="font-semibold text-slate-800 border-b border-slate-100 pb-1">
+              {hoveredBucket.date}
+            </div>
+            <div className="flex items-center gap-3 text-[11px] pt-0.5">
+              <span className="text-indigo-600 font-medium">
+                Sent: <strong>{hoveredBucket.sent}</strong>
+              </span>
+              <span className="text-emerald-600 font-medium">
+                Opens: <strong>{hoveredBucket.opens}</strong>
+              </span>
+              <span className="text-sky-600 font-medium">
+                Clicks: <strong>{hoveredBucket.clicks}</strong>
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
