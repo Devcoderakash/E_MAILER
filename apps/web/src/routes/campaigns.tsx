@@ -150,6 +150,7 @@ export function CampaignsPage() {
     text: string;
   } | null>(null);
   const [showWizardConfirmSend, setShowWizardConfirmSend] = useState(false);
+  const [isSubmittingCampaign, setIsSubmittingCampaign] = useState(false);
 
   // Context Actions Modals
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
@@ -386,8 +387,28 @@ export function CampaignsPage() {
     }
   };
 
+  // Helper to fully reset wizard fields
+  const resetWizardForm = () => {
+    setFormName("");
+    setFormSubject("");
+    setFormPreheader("");
+    setFormTemplateId(null);
+    setFormHtmlContent("");
+    setFormAudienceType("all");
+    setFormSelectedListIds([]);
+    setFormSelectedTagIds([]);
+    setSendTimingMode("now");
+    setScheduledDateTime("");
+    setTestEmailFeedback(null);
+    setWizardStep(1);
+    setIsWizardOpen(false);
+    setShowWizardConfirmSend(false);
+  };
+
   // Final confirmation to launch or schedule
   const handleConfirmedSend = async () => {
+    if (isSubmittingCampaign) return;
+    setIsSubmittingCampaign(true);
     try {
       const created = await api.createCampaign({
         name: formName || "Untitled Campaign",
@@ -404,28 +425,31 @@ export function CampaignsPage() {
       });
 
       if (sendTimingMode === "schedule" && scheduledDateTime) {
-        queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-        setShowWizardConfirmSend(false);
-        setIsWizardOpen(false);
+        await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+        resetWizardForm();
         setToastMessage({
           type: "success",
           text: `Campaign "${created.name}" scheduled for delivery!`,
         });
       } else {
         await api.sendCampaign(created.id);
-        queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-        setShowWizardConfirmSend(false);
-        setIsWizardOpen(false);
+        await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+        resetWizardForm();
         setToastMessage({
           type: "success",
           text: `Campaign "${created.name}" is now sending!`,
         });
+        // Auto-open campaign details drawer so user sees delivery progress
+        setDetailsCampaign(created);
       }
     } catch (err: any) {
+      setShowWizardConfirmSend(false);
       setToastMessage({
         type: "error",
         text: err.message || "Failed to dispatch campaign",
       });
+    } finally {
+      setIsSubmittingCampaign(false);
     }
   };
 
@@ -1527,6 +1551,7 @@ export function CampaignsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowWizardConfirmSend(false)}
+                disabled={isSubmittingCampaign}
                 className="text-xs border-slate-200"
               >
                 Cancel
@@ -1534,9 +1559,17 @@ export function CampaignsPage() {
               <Button
                 size="sm"
                 onClick={handleConfirmedSend}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
+                disabled={isSubmittingCampaign}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5"
               >
-                {sendTimingMode === "now" ? "Send now" : "Confirm Schedule"}
+                {isSubmittingCampaign && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isSubmittingCampaign
+                  ? sendTimingMode === "now"
+                    ? "Sending..."
+                    : "Scheduling..."
+                  : sendTimingMode === "now"
+                  ? "Send now"
+                  : "Confirm Schedule"}
               </Button>
             </div>
           </div>
